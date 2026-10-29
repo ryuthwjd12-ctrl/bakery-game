@@ -8,6 +8,9 @@ var clock_l: Label
 var gold_l: Label
 var level_l: Label
 var level_bar: ColorRect
+var hp_bar: ColorRect
+var mp_bar: ColorRect
+var hpmp_l: Label
 var orders_panel: PanelContainer
 var orders_box: VBoxContainer
 var order_bars: Array = []  # [table, ColorRect]
@@ -65,10 +68,20 @@ func _ready() -> void:
 	bar_bg.add_child(level_bar)
 	row2.add_child(bar_bg)
 	tl.add_child(row2)
+	# 체력·마나
+	var row3 := HBoxContainer.new()
+	row3.add_theme_constant_override("separation", 6)
+	hp_bar = _mini_bar(row3, Color("#E0675A"))
+	mp_bar = _mini_bar(row3, Color("#6FA8DC"))
+	hpmp_l = UI.label("", 14, Color("#9A8B7A"))
+	row3.add_child(hpmp_l)
+	tl.add_child(row3)
 	root.add_child(top_left)
 
 	top_right = HBoxContainer.new()
 	top_right.add_theme_constant_override("separation", 8)
+	top_right.add_child(UI.button("가방 (I)", open_bag, 20))
+	top_right.add_child(UI.button("지도 (M)", open_world_map, 20))
 	top_right.add_child(UI.button("레시피북 (R)", toggle_book, 20))
 	top_right.add_child(UI.button("메뉴 (Esc)", open_pause, 20))
 	root.add_child(top_right)
@@ -127,8 +140,24 @@ func set_screen(name: String) -> void:
 	refresh()
 
 
+func _mini_bar(parent: Control, col: Color) -> ColorRect:
+	var bg := ColorRect.new()
+	bg.color = Color("#EADFCB")
+	bg.custom_minimum_size = Vector2(90, 8)
+	bg.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var bar := ColorRect.new()
+	bar.color = col
+	bar.size = Vector2(90, 8)
+	bg.add_child(bar)
+	parent.add_child(bg)
+	return bar
+
+
 func refresh() -> void:
 	_tick()
+	hp_bar.size.x = 90.0 * clampf(float(GameState.hp) / GameState.max_hp(), 0, 1)
+	mp_bar.size.x = 90.0 * clampf(float(GameState.mp) / GameState.max_mp(), 0, 1)
+	hpmp_l.text = "체력 %d  마나 %d" % [GameState.hp, GameState.mp]
 	gold_l.text = "%d 골드" % GameState.gold
 	level_l.text = "가게 Lv.%d" % GameState.level()
 	level_bar.size.x = 140.0 * GameState.level_progress()
@@ -212,7 +241,7 @@ func _refresh_guide() -> void:
 	for c in guide_box.get_children():
 		guide_box.remove_child(c)
 		c.queue_free()
-	guide_panel.visible = _playing() and not GameState.tutorial_done()
+	guide_panel.visible = _playing() and screen != "field" and screen != "village" and not GameState.tutorial_done()
 	if not guide_panel.visible:
 		return
 	guide_box.add_child(UI.label("첫 영업 안내", 20, UI.PINK))
@@ -251,6 +280,18 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.keycode == KEY_R and not get_tree().paused:
 		toggle_book()
+		get_viewport().set_input_as_handled()
+	elif event.keycode == KEY_I and not get_tree().paused:
+		if panel:
+			close_panel()
+		else:
+			open_bag()
+		get_viewport().set_input_as_handled()
+	elif event.keycode == KEY_M and not get_tree().paused:
+		if panel:
+			close_panel()
+		else:
+			open_world_map()
 		get_viewport().set_input_as_handled()
 	elif event.keycode == KEY_ESCAPE:
 		if panel and not panel.has_meta("locked"):
@@ -340,20 +381,40 @@ func toggle_book() -> void:
 		grid.add_child(row)
 
 
-func open_shop() -> void:
-	Audio.sfx("door")
-	var vb := window("도토리 재료 가게", 800)
-	vb.add_child(UI.label("필요한 만큼 골라서 사요. 재료는 상하지 않아요.", 18, UI.CHESTNUT))
-	for id in ["flour", "sugar", "butter", "egg", "milk", "chocolate", "cream"]:
-		vb.add_child(_shop_row(id))
+const SELL_RATE := 0.3  # 되팔 때는 산 값의 30%
 
 
-func _shop_row(id: String) -> HBoxContainer:
+static func sell_price(price: int) -> int:
+	return maxi(1, int(price * SELL_RATE))
+
+
+## 재료 가게: 사기와 팔기. 그 가게가 다루는 물건만 사고팔 수 있어요.
+func open_trade(title: String, items: Array, selling := false) -> void:
+	if not panel:
+		Audio.sfx("door")
+	var vb := window(title, 820)
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 10)
+	var buy_b := UI.button("사기", func(): open_trade(title, items, false), 20)
+	var sell_b := UI.button("팔기", func(): open_trade(title, items, true), 20)
+	(sell_b if selling else buy_b).add_theme_color_override("font_color", UI.PINK)
+	tabs.add_child(buy_b)
+	tabs.add_child(sell_b)
+	var hint := UI.label("  되팔 때는 산 값의 30%만 받아요." if selling else "  재료는 상하지 않아요.", 16, UI.CHESTNUT)
+	tabs.add_child(hint)
+	vb.add_child(tabs)
+	for id in items:
+		vb.add_child(_trade_row(id, selling, func(): open_trade(title, items, selling)))
+
+
+func _trade_row(id: String, selling: bool, reopen: Callable) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	row.add_child(UI.icon(Sprites.item(id), 46))
-	var name := UI.label("%s  (%d골드)" % [GameState.item_name(id), GameState.ITEMS[id].price])
-	name.custom_minimum_size.x = 250
+	var price: int = GameState.ITEMS[id].price
+	var unit := sell_price(price) if selling else price
+	var name := UI.label("%s  (%d골드)" % [GameState.item_name(id), unit])
+	name.custom_minimum_size.x = 260
 	row.add_child(name)
 	var have := UI.label("가진 것 %d" % GameState.count(id), 18, UI.CHESTNUT)
 	have.custom_minimum_size.x = 110
@@ -368,19 +429,142 @@ func _shop_row(id: String) -> HBoxContainer:
 	var plus := func():
 		n.v = mini(20, n.v + 1)
 		n_l.text = str(n.v)
-	var buy := func():
-		if GameState.buy(id, n.v):
-			have.text = "가진 것 %d" % GameState.count(id)
+	var act := func():
+		if selling:
+			if GameState.count(id) < n.v:
+				Audio.sfx("fail")
+				show_toast("가진 것이 모자라요.")
+				return
+			GameState.inv[id] = GameState.count(id) - n.v
+			GameState.earn(unit * n.v)
+			Audio.sfx("coin")
+			show_toast("%s %d개를 팔았어요. (+%d골드)" % [GameState.item_name(id), n.v, unit * n.v])
+		elif GameState.buy(id, n.v):
 			Audio.sfx("coin")
 			show_toast("%s %d개를 샀어요." % [GameState.item_name(id), n.v])
 		else:
 			Audio.sfx("fail")
 			show_toast("골드가 모자라요.")
+			return
+		GameState.changed.emit()
+		reopen.call()
 	row.add_child(UI.button("-", minus, 20))
 	row.add_child(n_l)
 	row.add_child(UI.button("+", plus, 20))
-	row.add_child(UI.button("사기", buy, 20))
+	row.add_child(UI.button("팔기" if selling else "사기", act, 20))
 	return row
+
+
+## 무기 상점: 비쌀수록 센 무기. 산 무기는 바로 장착하고, 안 쓰는 무기는 되팔 수 있어요.
+func open_weapon_shop() -> void:
+	if not panel:
+		Audio.sfx("door")
+	var vb := window("도토리 무기 상점", 860)
+	vb.add_child(UI.label("근접 무기는 앞으로 휘두르고, 마법 무기는 반짝이를 멀리 쏴요(마나 사용). 되팔면 30%.", 16, UI.CHESTNUT))
+	for id in GameState.WEAPONS:
+		var w: Dictionary = GameState.WEAPONS[id]
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 12)
+		row.add_child(UI.icon(Sprites.tex(w.icon), 50))
+		var col := VBoxContainer.new()
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		col.add_child(UI.label("%s  (%s)" % [w.name, "%d골드" % w.price if w.price > 0 else "기본"], 20))
+		var info := "근접 · 공격력 %d" % w.power if w.type == "melee" else "마법 · 공격력 %d · 마나 %d" % [w.power, w.mp]
+		col.add_child(UI.label(info, 15, Color("#9A8B7A")))
+		row.add_child(col)
+		var owned: bool = GameState.weapons.has(id)
+		if GameState.weapon == id:
+			row.add_child(UI.label("장착 중", 18, UI.PINK))
+		elif owned:
+			row.add_child(UI.button("장착", func():
+				GameState.weapon = id
+				Audio.sfx("pick")
+				GameState.changed.emit()
+				open_weapon_shop(), 18))
+			if w.price > 0:
+				row.add_child(UI.button("팔기 %d" % sell_price(w.price), func():
+					GameState.weapons.erase(id)
+					GameState.earn(sell_price(w.price))
+					Audio.sfx("coin")
+					open_weapon_shop(), 18))
+		else:
+			row.add_child(UI.button("사기", func():
+				if GameState.gold < w.price:
+					Audio.sfx("fail")
+					show_toast("골드가 모자라요.")
+					return
+				GameState.gold -= w.price
+				GameState.today.spent = GameState.today.get("spent", 0) + w.price
+				GameState.weapons.append(id)
+				GameState.weapon = id
+				GameState.changed.emit()
+				GameState.save_game()
+				Audio.sfx("coin")
+				show_toast("%s을(를) 샀어요! 바로 장착했어요." % w.name)
+				open_weapon_shop(), 18))
+		vb.add_child(row)
+
+
+## 가방: 체력·마나, 무기 바꾸기, 모은 재료
+func open_bag() -> void:
+	var vb := window("가방", 760)
+	vb.add_child(UI.label("체력 %d / %d    마나 %d / %d    (자고 나면 다 차요)" % [GameState.hp, GameState.max_hp(), GameState.mp, GameState.max_mp()], 18))
+	vb.add_child(UI.label("무기  (숲에서 스페이스 또는 오른쪽 클릭으로 공격)", 20, UI.PINK))
+	var grid := HBoxContainer.new()
+	grid.add_theme_constant_override("separation", 10)
+	for id in GameState.weapons:
+		var w: Dictionary = GameState.WEAPONS[id]
+		var b := Button.new()
+		b.custom_minimum_size = Vector2(110, 110)
+		b.icon = Sprites.tex(w.icon)
+		b.expand_icon = true
+		b.tooltip_text = w.name
+		if GameState.weapon == id:
+			b.add_theme_stylebox_override("normal", UI.box(Color("#FFE9EC"), UI.PINK, 14, 4))
+		b.pressed.connect(func():
+			GameState.weapon = id
+			Audio.sfx("pick")
+			GameState.changed.emit()
+			open_bag())
+		grid.add_child(b)
+	vb.add_child(grid)
+	var w0: Dictionary = GameState.WEAPONS[GameState.weapon]
+	vb.add_child(UI.label("장착: %s (%s, 공격력 %d)" % [w0.name, "근접" if w0.type == "melee" else "마법", w0.power], 18))
+	vb.add_child(UI.label("모은 재료", 20, UI.PINK))
+	var items := HBoxContainer.new()
+	items.add_theme_constant_override("separation", 10)
+	for id in ["walnut", "acorn", "matcha", "honey_jar", "apple", "milk", "chocolate", "raspberry"]:
+		if GameState.count(id) > 0:
+			var cell := HBoxContainer.new()
+			cell.add_child(UI.icon(Sprites.item(id), 36))
+			cell.add_child(UI.label("×%d" % GameState.count(id), 18))
+			items.add_child(cell)
+	if items.get_child_count() == 0:
+		items.add_child(UI.label("아직 없어요. 숲의 몬스터가 재료를 떨어뜨려요.", 16, Color("#9A8B7A")))
+	vb.add_child(items)
+
+
+## 세계 지도(M)
+func open_world_map() -> void:
+	var vb := window("세계 지도", 900)
+	var holder := Control.new()
+	holder.custom_minimum_size = Vector2(860, 606)
+	var tr := TextureRect.new()
+	tr.texture = Sprites.tex("maps/world_map")
+	tr.size = Vector2(860, 606)
+	tr.stretch_mode = TextureRect.STRETCH_SCALE
+	holder.add_child(tr)
+	var here: String = main.current_name if main.current_name != "field" else main.current.area_id
+	if here == "hall" or here == "kitchen":
+		here = "village"
+	for w in Areas.WORLD:
+		var l := UI.label(w[0], 16 if w[2] != "" else 13, UI.OUTLINE if w[2] != "" else Color("#9A8B7A"))
+		l.add_theme_stylebox_override("normal", UI.box(Color(1, 0.98, 0.9, 0.9), UI.PINK if w[2] == here else Color("#D8C6A8"), 8, 3 if w[2] == here else 1))
+		holder.add_child(l)
+		l.reset_size()
+		l.position = w[1] - Vector2(l.size.x / 2, 0)
+	vb.add_child(holder)
+	vb.add_child(UI.label("마을 가장자리 길로 나가면 숲길이에요. 숲에는 몬스터가 있어요. 북: 꽃잎 언덕 · 동: 조개 해변 · 남: 사과 과수원 · 서: 눈꽃 마을", 15, UI.CHESTNUT))
 
 
 ## 한 개씩 사는 가게(가구점, 도구점). entries: {icon, name, price, note, block: Callable -> String, buy: Callable}
@@ -394,7 +578,7 @@ func open_store(title: String, desc: String, entries: Array) -> void:
 		row.add_child(UI.icon(e.icon, 64))
 		var col := VBoxContainer.new()
 		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		col.add_child(UI.label("%s  (%d골드)" % [e.name, e.price], 22))
+		col.add_child(UI.label(e.name if e.price == 0 else "%s  (%d골드)" % [e.name, e.price], 22))
 		col.add_child(UI.label(e.note, 16, Color("#9A8B7A")))
 		row.add_child(col)
 		var why: String = e.block.call()
@@ -413,7 +597,7 @@ func open_store(title: String, desc: String, entries: Array) -> void:
 				GameState.save_game()
 				Audio.sfx("coin")
 				open_store(title, desc, entries)
-			row.add_child(UI.button("사기", buy, 20))
+			row.add_child(UI.button("팔기" if e.price == 0 else "사기", buy, 20))
 		vb.add_child(row)
 
 
@@ -454,6 +638,18 @@ func open_quest(q: Dictionary, accept: Callable, decline: Callable) -> void:
 		close_panel()
 		decline.call(), 22))
 	vb.add_child(btns)
+
+
+## 확인 버튼 하나뿐인 알림 창
+func notice(title: String, text: String) -> void:
+	var vb := window(title, 600)
+	var l := UI.label(text, 20)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size.x = 560
+	vb.add_child(l)
+	var b := UI.button("확인", close_panel, 22)
+	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	vb.add_child(b)
 
 
 func confirm(text: String, yes: Callable) -> void:

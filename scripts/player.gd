@@ -7,6 +7,7 @@ var sprite: AnimatedSprite2D
 var speed := 230.0
 var active := true
 var busy := false  # 청소처럼 잠깐 멈춰서 하는 일
+var posing := false  # 공격처럼 다른 그림을 보여 주는 중
 var can_walk: Callable  # func(Vector2) -> bool
 var target = null
 var waypoints: Array = []
@@ -27,6 +28,8 @@ func setup(hero: String, scale_f: float) -> void:
 
 
 func _process(delta: float) -> void:
+	if posing:
+		return
 	if busy:
 		_work_t += delta
 		sprite.rotation = sin(_work_t * 18.0) * 0.06

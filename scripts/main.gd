@@ -6,6 +6,7 @@ const Kitchen := preload("res://scripts/kitchen.gd")
 const Village := preload("res://scripts/village.gd")
 const Title := preload("res://scripts/title.gd")
 const Hud := preload("res://scripts/hud.gd")
+const Field := preload("res://scripts/field.gd")
 
 var hall: Node2D
 var current: Node
@@ -45,6 +46,22 @@ func new_day() -> void:
 	hud.show_toast("%d일차 아침이에요. 오늘도 힘내요!" % GameState.day)
 
 
+## 마을 밖 지역(숲길, 다른 마을)으로 가요.
+func goto_field(area_id: String, from := "") -> void:
+	if current and current != hall:
+		current.queue_free()
+	if hall:
+		hall.set_active(false)
+	current = Field.new()
+	current.main = self
+	current.area_id = area_id
+	current.from = from
+	add_child(current)
+	current_name = "field"
+	hud.set_screen("field")
+	GameState.save_game()
+
+
 func goto(name: String, from := "") -> void:
 	if current and current != hall:
 		current.queue_free()
@@ -70,6 +87,7 @@ func goto(name: String, from := "") -> void:
 		"village":
 			current = Village.new()
 			current.main = self
+			current.from = from
 			add_child(current)
 	current_name = name
 	hud.set_screen(name)

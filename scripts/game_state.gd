@@ -35,6 +35,24 @@ const ITEMS := {
 	"milk_bread": {"name": "우유 식빵", "kind": "food", "price": 40, "bake": 12.0},
 	"raspberry_cake": {"name": "산딸기 생크림 케이크", "kind": "food", "price": 95, "bake": 15.0},
 	"warm_milk": {"name": "따뜻한 우유", "kind": "food", "price": 15, "bake": 0.0},
+	# 다른 마을·몬스터에게서 얻는 재료
+	"walnut": {"name": "호두", "kind": "ing", "price": 12},
+	"acorn": {"name": "도토리", "kind": "ing", "price": 10},
+	"matcha": {"name": "말차 가루", "kind": "ing", "price": 14},
+	"honey_jar": {"name": "꿀", "kind": "ing", "price": 15},
+	"strawberry": {"name": "딸기", "kind": "ing", "price": 12},
+	"apple": {"name": "사과", "kind": "ing", "price": 10},
+	"blueberry": {"name": "블루베리", "kind": "ing", "price": 12},
+	"lemon": {"name": "레몬", "kind": "ing", "price": 12},
+	"almond": {"name": "아몬드", "kind": "ing", "price": 14},
+	"nut_cookie": {"name": "호두 쿠키", "kind": "food", "price": 60, "bake": 10.0},
+	"cream_bun": {"name": "꿀 크림빵", "kind": "food", "price": 70, "bake": 12.0},
+	"macaron": {"name": "말차 마카롱", "kind": "food", "price": 85, "bake": 10.0},
+	"bear_cookie": {"name": "곰돌이 꿀쿠키", "kind": "food", "price": 75, "bake": 10.0},
+	"croissant": {"name": "사과 크루아상", "kind": "food", "price": 80, "bake": 12.0},
+	"mushroom_cookie": {"name": "도토리 버섯 쿠키", "kind": "food", "price": 90, "bake": 10.0},
+	"choco_brioche": {"name": "초코 브리오슈", "kind": "food", "price": 100, "bake": 14.0},
+	"snow_cookie": {"name": "눈꽃 쿠키", "kind": "food", "price": 150, "bake": 10.0},
 	# 스페셜 요리(부탁 손님만 주문해요)
 	"heart_cookie": {"name": "산딸기 하트 쿠키", "kind": "food", "price": 80, "bake": 10.0},
 	"acorn_cookie": {"name": "초코 도토리 쿠키", "kind": "food", "price": 90, "bake": 10.0},
@@ -55,6 +73,14 @@ const RECIPES := [
 	{"id": "acorn_cookie", "needs": ["bowl", "flour", "butter", "chocolate", "egg"]},
 	{"id": "flower_cookie", "needs": ["flour", "sugar", "egg", "cream", "star_cutter"]},
 	{"id": "cinnamon_roll", "needs": ["cake_tin", "flour", "butter", "sugar", "cream"]},
+	{"id": "nut_cookie", "needs": ["bowl", "flour", "butter", "sugar", "walnut"]},
+	{"id": "cream_bun", "needs": ["bowl", "flour", "milk", "honey_jar", "cream"]},
+	{"id": "macaron", "needs": ["bowl", "sugar", "egg", "matcha", "cream"]},
+	{"id": "bear_cookie", "needs": ["bowl", "flour", "butter", "honey_jar", "egg"]},
+	{"id": "croissant", "needs": ["rolling_pin", "flour", "butter", "egg", "apple"]},
+	{"id": "mushroom_cookie", "needs": ["bowl", "flour", "butter", "sugar", "acorn"]},
+	{"id": "choco_brioche", "needs": ["cake_tin", "flour", "butter", "chocolate", "milk"]},
+	{"id": "snow_cookie", "needs": ["flour", "sugar", "butter", "cream", "star_cutter"]},
 ]
 ## 가끔 오는 부탁 손님. 사연을 듣고 스페셜 요리를 만들어 주면 큰 보상을 받아요.
 const QUESTS := [
@@ -74,14 +100,16 @@ const MENU_BY_LEVEL := [
 	["butter_cookie", "warm_milk", "milk_bread"],
 	["choco_cookie", "jam_cookie"],
 	["star_cookie", "raspberry_cake"],
+	["nut_cookie", "cream_bun", "mushroom_cookie"],
+	["macaron", "bear_cookie", "croissant", "choco_brioche"],
 ]
 const LEVEL_REP := [0, 8, 20, 40, 70]
 
 const STORAGE := {
 	"cabinet": {"name": "그릇장", "items": ["bowl", "mug", "cake_plate", "cake_tin", "star_cutter", "rolling_pin", "piping_bag"]},
-	"fridge": {"name": "냉장고", "items": ["butter", "egg", "milk", "cream"]},
+	"fridge": {"name": "냉장고", "items": ["butter", "egg", "milk", "cream", "apple"]},
 	"freezer": {"name": "냉동고", "items": ["raspberry"]},
-	"pantry": {"name": "찬장", "items": ["flour", "sugar", "chocolate"]},
+	"pantry": {"name": "찬장", "items": ["flour", "sugar", "chocolate", "walnut", "acorn", "matcha", "honey_jar"]},
 }
 
 const DAY_START := 9 * 60
@@ -117,11 +145,22 @@ var mp := 40
 var weapons: Array = ["spatula"]
 var weapon := "spatula"
 var quests_done: Array = []
+var boss_done := false
 var active_quest := ""  # 받은 부탁(그날만)
 var quest_seen_today := false
 
 const SAVE_KEYS := ["hero", "gold", "day", "inv", "stock", "known", "oven", "rep", "has_waiter", "tutorial",
-	"annex_tables", "decor", "hp", "mp", "weapons", "weapon", "quests_done"]
+	"annex_tables", "decor", "hp", "mp", "weapons", "weapon", "quests_done", "boss_done"]
+## 무기: 근접(melee)은 앞으로 휘두르고, 마법(magic)은 반짝이를 쏘며 마나를 써요. 비쌀수록 세요.
+const WEAPONS := {
+	"spatula": {"name": "나무 뒤집개", "type": "melee", "power": 8, "price": 0, "icon": "items/spatula"},
+	"rolling_pin": {"name": "밀대 몽둥이", "type": "melee", "power": 14, "price": 200, "icon": "items/rolling_pin"},
+	"piping_bag": {"name": "크림 짤주머니", "type": "magic", "power": 12, "mp": 4, "price": 300, "icon": "items/piping_bag"},
+	"cake_tin": {"name": "케이크 틀 망치", "type": "melee", "power": 22, "price": 550, "icon": "items/cake_tin"},
+	"star_cutter": {"name": "별빛 쿠키 틀", "type": "magic", "power": 20, "mp": 5, "price": 700, "icon": "items/star_cutter"},
+	"honey_staff": {"name": "꿀단지 지팡이", "type": "magic", "power": 30, "mp": 6, "price": 1200, "icon": "items/honey_jar"},
+	"walnut_hammer": {"name": "호두 깨기 망치", "type": "melee", "power": 36, "price": 1500, "icon": "items/walnut"},
+}
 const ANNEX_MAX := 4
 const DECOR_MAX := 2
 
@@ -146,6 +185,7 @@ func new_game(h: String) -> void:
 	weapons = ["spatula"]
 	weapon = "spatula"
 	quests_done = []
+	boss_done = false
 	_reset_day()
 	changed.emit()
 
@@ -413,6 +453,7 @@ func load_game() -> bool:
 	weapons = data.get("weapons", ["spatula"])
 	weapon = data.get("weapon", "spatula")
 	quests_done = data.get("quests_done", [])
+	boss_done = data.get("boss_done", false)
 	_reset_day()
 	changed.emit()
 	return true

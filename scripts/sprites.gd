@@ -13,23 +13,27 @@ static var _cache := {}
 
 
 static func has_strip(key: String) -> bool:
-	return SpriteData.STRIPS.has(key)
+	return SpriteData.STRIPS.has(key) or SpriteDataExtra.STRIPS.has(key)
+
+
+static func info(key: String) -> Array:
+	return SpriteData.STRIPS[key] if SpriteData.STRIPS.has(key) else SpriteDataExtra.STRIPS[key]
 
 
 static func strip_count(key: String) -> int:
-	return SpriteData.STRIPS[key][3] if has_strip(key) else 0
+	return info(key)[3] if has_strip(key) else 0
 
 
 static func _add(sf: SpriteFrames, anim: String, key: String, fps: float) -> void:
-	var info: Array = SpriteData.STRIPS[key]
-	var tex: Texture2D = load("res://assets/%s.png" % info[0])
+	var inf := info(key)
+	var tex: Texture2D = load("res://assets/%s.png" % inf[0])
 	sf.add_animation(anim)
 	sf.set_animation_loop(anim, true)
 	sf.set_animation_speed(anim, fps)
-	for i in info[3]:
+	for i in inf[3]:
 		var at := AtlasTexture.new()
 		at.atlas = tex
-		at.region = Rect2(i * info[1], 0, info[1], info[2])
+		at.region = Rect2(i * inf[1], 0, inf[1], inf[2])
 		sf.add_frame(anim, at)
 
 
@@ -70,14 +74,14 @@ static func animal_frames(kind: String) -> SpriteFrames:
 
 
 static func frame_height(key: String) -> int:
-	return SpriteData.STRIPS[key][2]
+	return info(key)[2]
 
 
 static func first_frame(key: String) -> Texture2D:
-	var info: Array = SpriteData.STRIPS[key]
+	var inf := info(key)
 	var at := AtlasTexture.new()
-	at.atlas = load("res://assets/%s.png" % info[0])
-	at.region = Rect2(0, 0, info[1], info[2])
+	at.atlas = load("res://assets/%s.png" % inf[0])
+	at.region = Rect2(0, 0, inf[1], inf[2])
 	return at
 
 

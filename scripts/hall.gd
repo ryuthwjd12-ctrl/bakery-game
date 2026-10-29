@@ -163,6 +163,23 @@ func add_annex_set() -> void:
 	_build_annex()
 
 
+## 가구를 되팔면 마지막에 놓은 탁자 세트를 치워요(손님이 앉아 있으면 못 팔아요).
+func remove_annex_set() -> bool:
+	var last2 := tables.slice(tables.size() - 2)
+	for t in last2:
+		if t.state != "empty" or t.dirty:
+			return false
+	for t in last2:
+		tables.erase(t)
+		t.queue_free()
+	var sps := annex_layer.get_children()
+	if not sps.is_empty():
+		sps[-1].queue_free()
+	GameState.annex_tables -= 1
+	_build_annex()
+	return true
+
+
 func add_decor() -> void:
 	var i := GameState.decor - 1
 	_place_decor(i)

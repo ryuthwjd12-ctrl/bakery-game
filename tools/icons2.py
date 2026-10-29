@@ -76,3 +76,56 @@ for name, boxes in MON.items():
         im = im.resize((round(im.width * s), 110), Image.LANCZOS)
         im.save(os.path.join(OUT, 'monsters', f'{name}_{tag}.png'))
 print('done')
+
+# ---- 주인공 공격 동작(05-11 시트 오른쪽): 뒤집개 휘두르기, 반짝이 마법
+WALK_H = 219  # 걷기 그림 속 몸 높이
+ATK = {
+    'female_attack': [(1000, 308, 1122, 428), (1128, 308, 1252, 428), (1258, 308, 1382, 428)],
+    'female_cast': [(1000, 438, 1122, 592), (1128, 438, 1252, 592), (1258, 438, 1382, 592)],
+    'male_attack': [(985, 608, 1112, 757)],
+    'male_cast': [(1128, 608, 1252, 757), (1258, 608, 1385, 757)],
+}
+STAND = {'female': 143, 'male': 146}  # 시트에서 서 있는 몸 높이
+extra = {}
+for key, boxes in ATK.items():
+    hero = key.split('_')[0]
+    s = WALK_H / STAND[hero]
+    frames = []
+    for b in boxes:
+        im = cutout('05-11-hero-mixed.png', b, tol=24, min_part=0.002)
+        frames.append(im.resize((round(im.width * s), round(im.height * s)), Image.LANCZOS))
+    fw = max(f.width for f in frames) + 4
+    fh = max(f.height for f in frames) + 2
+    strip = Image.new('RGBA', (fw * len(frames), fh))
+    for i, f in enumerate(frames):
+        strip.paste(f, (i * fw + (fw - f.width) // 2, fh - f.height), f)
+    strip.save(os.path.join(OUT, 'characters', key + '.png'))
+    extra[key] = ('characters/' + key, fw, fh, len(frames))
+with open(os.path.join(ROOT, 'scripts', 'sprite_data_extra.gd'), 'w') as f:
+    f.write('class_name SpriteDataExtra\nextends RefCounted\n## tools/icons2.py가 만든 파일이에요. 직접 고치지 말아요.\n\nconst STRIPS := {\n')
+    for k, v in extra.items():
+        f.write('\t"%s": ["%s", %d, %d, %d],\n' % (k, *v))
+    f.write('}\n')
+print('attack strips', extra)
+
+# 뒤집개 아이콘: 공격 그림에서 뒤집개만 떼어내요(손 위쪽)
+atk = Image.open(os.path.join(OUT, 'characters', 'female_attack.png')).crop((128, 4, 186, 80))
+a = np.array(atk)
+# 손(살색)과 소매를 빼고 나무색만 남겨요
+r, g, b, al = [a[..., i].astype(int) for i in range(4)]
+wood = (r > 120) & (r - b > 50) & (g > 70) & (r - g < 75) | ((r < 120) & (r > 60) & (r - b > 30))
+a[..., 3] = np.where(wood, a[..., 3], 0)
+lab, n = ndimage.label(a[..., 3] > 0)
+if n:
+    sz = ndimage.sum(a[..., 3] > 0, lab, range(1, n + 1))
+    a[..., 3] = np.where(lab == int(np.argmax(sz)) + 1, a[..., 3], 0)
+sp = Image.fromarray(a, 'RGBA')
+sp = sp.crop(sp.getbbox())
+sp = sp.crop((0, 0, sp.width, int(sp.height * 0.86)))
+fit(sp, 72).save(os.path.join(OUT, 'items', 'spatula.png'))
+
+# 눈사람 거인 보스(20-26 시트 오른쪽 아래): 서기, 걷기, 쓰러짐
+for tag, box in {'idle': (982, 598, 1104, 766), 'walk': (1110, 598, 1252, 766), 'down': (1262, 598, 1402, 766)}.items():
+    im = cutout('20-26-maps-worldmap-boss.png', box, tol=22, min_part=0.02)
+    s = 200 / im.height
+    im.resize((round(im.width * s), 200), Image.LANCZOS).save(os.path.join(OUT, 'monsters', f'snowman_{tag}.png'))

@@ -76,6 +76,7 @@ const GREETINGS := ["안녕! 오늘도 빵 냄새가 좋다.", "도토리가 잔
 	"이따가 가게에 들를게.", "날씨가 참 포근하네.", "새 메뉴는 언제 나와?"]
 
 var main: Node
+var from := ""  # 어디서 왔는지(숲에서 오면 그 가장자리에 서요)
 var world := Node2D.new()
 var player
 var cam := Camera2D.new()
@@ -99,6 +100,11 @@ func _ready() -> void:
 	player.speed = 110.0
 	player.can_walk = can_walk
 	player.position = BAKERY_DOOR + Vector2(0, 36)
+	var edge := {"forest_north": Vector2(712, 30), "forest_east": Vector2(1370, 362),
+		"forest_south": Vector2(715, 735), "forest_west": Vector2(34, 375)}
+	if edge.has(from):
+		player.position = edge[from]
+		door_armed = true
 	world.add_child(player)
 
 	cam.zoom = Vector2(ZOOM, ZOOM)
@@ -188,10 +194,10 @@ func can_walk(p: Vector2) -> bool:
 
 func _actions() -> Array:
 	var out: Array = [
-		{"pos": Vector2(560, 240), "r": 40.0, "text": "재료 가게", "do": func(): main.hud.open_shop()},
-		{"pos": Vector2(930, 262), "r": 36.0, "text": "그릇 가게", "do": _soon},
+		{"pos": Vector2(560, 240), "r": 40.0, "text": "재료 가게", "do": func(): main.hud.open_trade("도토리 재료 가게", ["flour", "sugar", "butter", "egg", "milk", "chocolate", "cream"])},
+		{"pos": Vector2(930, 262), "r": 36.0, "text": "특산물 가게", "do": func(): main.hud.open_trade("숲속 특산물 가게", ["walnut", "acorn", "honey_jar", "matcha", "apple"])},
 		{"pos": Vector2(1065, 335), "r": 36.0, "text": "가구점", "do": _furniture_shop},
-		{"pos": Vector2(310, 615), "r": 36.0, "text": "도구점", "do": _soon},
+		{"pos": Vector2(310, 615), "r": 36.0, "text": "무기 상점", "do": func(): main.hud.open_weapon_shop()},
 		{"pos": Vector2(1110, 610), "r": 36.0, "text": "옷 가게", "do": _soon},
 	]
 	for id in BUSHES:
@@ -204,6 +210,21 @@ func _actions() -> Array:
 
 
 func _process(_delta: float) -> void:
+	# 마을 가장자리로 나가면 숲길이에요
+	var pp: Vector2 = player.position
+	var side := ""
+	if pp.y < 14:
+		side = "north"
+	elif pp.x > 1394:
+		side = "east"
+	elif pp.y > 754:
+		side = "south"
+	elif pp.x < 14:
+		side = "west"
+	if side != "":
+		set_process(false)
+		main.goto_field(Areas.VILLAGE_EXITS[side], "village")
+		return
 	var dd: float = player.position.distance_to(BAKERY_DOOR)
 	if dd > 26:
 		door_armed = true
@@ -268,7 +289,18 @@ func _furniture_shop() -> void:
 				GameState.decor = 2
 				hall.add_decor()},
 	]
-	main.hud.open_store("숲속 가구점", "산 가구는 가게 별관에 바로 놓여요.", entries)
+	if GameState.annex_tables > 0:
+		var back := (300 + (GameState.annex_tables - 1) * 100)
+		entries.append({"icon": Sprites.tex("furniture/table_set"), "name": "탁자 세트 되팔기", "price": 0,
+			"note": "별관의 마지막 탁자를 %d골드에 팔아요. (산 값의 30%%)" % main.hud.sell_price(back),
+			"block": func(): return "",
+			"buy": func():
+				if hall.remove_annex_set():
+					GameState.earn(main.hud.sell_price(back))
+					GameState.toast.emit("탁자 세트를 팔았어요.")
+				else:
+					GameState.toast.emit("손님이 앉아 있거나 지저분한 탁자는 팔 수 없어요.")})
+	main.hud.open_store("숲속 가구점", "산 가구는 가게 별관에 바로 놓여요. 되팔면 산 값의 30%를 받아요.", entries)
 
 
 func _soon() -> void:
