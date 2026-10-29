@@ -12,7 +12,7 @@ func _ready() -> void:
 	sprite = AnimatedSprite2D.new()
 	sprite.sprite_frames = Sprites.frames_for("puppy", ["front", "back", "right", "tray", "sweep"])
 	sprite.offset = Vector2(0, -61)
-	sprite.scale = Vector2(0.9, 0.9)
+	sprite.scale = Vector2(1.05, 1.05)
 	sprite.animation = "front"
 	add_child(sprite)
 
@@ -47,7 +47,14 @@ func _idle() -> void:
 
 
 func walk_to(p: Vector2, carrying := false) -> void:
+	for q in hall.find_path(position, p):
+		await _step_to(q, carrying)
+
+
+func _step_to(p: Vector2, carrying: bool) -> void:
 	var d := p - position
+	if d.length() < 1.0:
+		return
 	if carrying:
 		sprite.animation = "tray"
 		sprite.flip_h = d.x < 0

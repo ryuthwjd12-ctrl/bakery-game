@@ -9,7 +9,7 @@ var gold_l: Label
 var level_l: Label
 var level_bar: ColorRect
 var orders_panel: PanelContainer
-var orders_box: HBoxContainer
+var orders_box: VBoxContainer
 var order_bars: Array = []  # [table, ColorRect]
 var stock_panel: PanelContainer
 var stock_box: HBoxContainer
@@ -77,8 +77,8 @@ func _ready() -> void:
 
 	orders_panel = PanelContainer.new()
 	orders_panel.add_theme_stylebox_override("panel", UI.box(Color(1, 0.98, 0.93, 0.92), UI.OUTLINE, 14, 2))
-	orders_box = HBoxContainer.new()
-	orders_box.add_theme_constant_override("separation", 8)
+	orders_box = VBoxContainer.new()
+	orders_box.add_theme_constant_override("separation", 6)
 	orders_panel.add_child(orders_box)
 	root.add_child(orders_panel)
 
@@ -149,7 +149,7 @@ func _tick() -> void:
 		var t = ob[0]
 		if is_instance_valid(t):
 			var f: float = clampf(t.patience / t.patience_max, 0, 1)
-			ob[1].size.x = 60.0 * f
+			ob[1].size.x = 100.0 * f
 			ob[1].color = UI.PINK if f > 0.3 else Color("#D9534F")
 
 
@@ -159,6 +159,9 @@ func _refresh_orders() -> void:
 		c.queue_free()
 	order_bars.clear()
 	orders_panel.visible = _playing() and not GameState.orders.is_empty()
+	if not orders_panel.visible:
+		return
+	orders_box.add_child(UI.label("주문 순서", 17, UI.CHESTNUT))
 	for i in GameState.orders.size():
 		var t = GameState.orders[i]
 		if not is_instance_valid(t):
@@ -167,26 +170,27 @@ func _refresh_orders() -> void:
 		var first := i == 0
 		card.add_theme_stylebox_override("panel", UI.box(Color.WHITE if first else Color("#FFFBF2"), UI.PINK if first else Color("#D8C6A8"), 10, 3 if first else 2))
 		var vb := VBoxContainer.new()
-		vb.add_theme_constant_override("separation", 2)
+		vb.add_theme_constant_override("separation", 3)
 		var hb := HBoxContainer.new()
-		hb.add_theme_constant_override("separation", 2)
-		hb.add_child(UI.icon(Sprites.first_frame(t.kind + "_front"), 34))
-		hb.add_child(UI.icon(Sprites.item(t.order), 38))
+		hb.add_theme_constant_override("separation", 4)
+		hb.add_child(UI.label(str(i + 1), 18, UI.PINK if first else UI.OUTLINE))
+		hb.add_child(UI.icon(Sprites.first_frame(t.kind + "_front"), 40))
+		hb.add_child(UI.icon(Sprites.item(t.order), 42))
 		vb.add_child(hb)
 		var bg := ColorRect.new()
 		bg.color = Color("#EADFCB")
-		bg.custom_minimum_size = Vector2(60, 6)
+		bg.custom_minimum_size = Vector2(100, 7)
 		bg.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		var bar := ColorRect.new()
 		bar.color = UI.PINK
-		bar.size = Vector2(60, 6)
+		bar.size = Vector2(100, 7)
 		bg.add_child(bar)
 		vb.add_child(bg)
 		card.add_child(vb)
 		orders_box.add_child(card)
 		order_bars.append([t, bar])
 	orders_panel.reset_size()
-	orders_panel.position = Vector2((1408 - orders_panel.size.x) / 2, 10)
+	orders_panel.position = Vector2(1408 - 16 - orders_panel.size.x, 62)
 
 
 func _refresh_stock() -> void:
@@ -216,9 +220,10 @@ func _refresh_guide() -> void:
 		var done: bool = GameState.tutorial.has(g[0])
 		guide_box.add_child(UI.label(("✓ " if done else "○ ") + g[1], 17, Color("#9A8B7A") if done else UI.OUTLINE))
 	guide_panel.reset_size()
-	# 주방에서는 굽기 버튼을 가리지 않게 오븐 위쪽으로 올려요.
-	var y := 330.0 if screen == "kitchen" else 768 - 16 - guide_panel.size.y
-	guide_panel.position = Vector2(1408 - 16 - guide_panel.size.x, y)
+	if screen == "kitchen":
+		guide_panel.position = Vector2(16, 120)  # 주방은 오른쪽에 주문 순서와 오븐이 있어서 왼쪽에
+	else:
+		guide_panel.position = Vector2(1408 - 16 - guide_panel.size.x, 768 - 16 - guide_panel.size.y)
 
 
 func show_toast(text: String) -> void:
@@ -463,18 +468,57 @@ func open_options(from_pause := false) -> void:
 	vb.add_child(UI.button("확인", done, 22))
 
 
+func _ledger_row(name: String, n: int, bold := false) -> HBoxContainer:
+	var hb := HBoxContainer.new()
+	var l := UI.label(name, 22 if bold else 19)
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hb.add_child(l)
+	var col := Color("#5E9E5A") if n > 0 else (Color("#C9514A") if n < 0 else UI.OUTLINE)
+	hb.add_child(UI.label("%s%d골드" % ["+" if n > 0 else "", n], 22 if bold else 19, col))
+	return hb
+
+
 func _on_day_ended(s: Dictionary) -> void:
 	Audio.sfx("sparkle")
-	var vb := window("%d일차 영업 끝!" % GameState.day, 520, false)
+	var vb := window("%d일차 경영 일지" % GameState.day, 760, false)
 	get_tree().paused = true
-	for line in [
-		"맛있게 먹고 간 손님  %d명" % s.served,
-		"화나서 돌아간 손님  %d명" % s.lost,
-		"오늘 번 돈  %d골드" % s.earned,
-		"새로 찾은 레시피  %d개" % s.new,
-		"가게 레벨  %d" % GameState.level(),
-	]:
-		vb.add_child(UI.label(line, 22))
+	var cols := HBoxContainer.new()
+	cols.add_theme_constant_override("separation", 28)
+	vb.add_child(cols)
+	# 왼쪽: 돈
+	var money := VBoxContainer.new()
+	money.custom_minimum_size = Vector2(330, 0)
+	money.add_child(UI.label("오늘의 장부", 22, UI.PINK))
+	var tips: int = s.get("tips", 0)
+	var spent: int = s.get("spent", 0)
+	var sales: int = s.earned - tips
+	var net: int = s.earned - spent
+	for row in [["판매 수입", sales], ["팁", tips], ["재료비", -spent]]:
+		money.add_child(_ledger_row(row[0], row[1]))
+	money.add_child(HSeparator.new())
+	money.add_child(_ledger_row("하루 순수익", net, true))
+	money.add_child(UI.label("가진 돈  %d골드" % GameState.gold, 18, Color("#9A8B7A")))
+	cols.add_child(money)
+	# 오른쪽: 손님과 가게
+	var shop := VBoxContainer.new()
+	shop.custom_minimum_size = Vector2(330, 0)
+	shop.add_child(UI.label("가게 상태", 22, UI.PINK))
+	shop.add_child(UI.label("만족한 손님  %d명   화난 손님  %d명" % [s.served, s.lost], 18))
+	var rep_d: int = GameState.rep - int(s.get("rep_start", GameState.rep))
+	shop.add_child(UI.label("평판  %s%d   (가게 Lv.%d)" % ["+" if rep_d >= 0 else "", rep_d, GameState.level()], 18))
+	shop.add_child(UI.label("새로 찾은 레시피  %d개" % s.new, 18))
+	var sold: Dictionary = s.get("sold", {})
+	if not sold.is_empty():
+		shop.add_child(UI.label("팔린 메뉴", 18, UI.CHESTNUT))
+		var grid := HBoxContainer.new()
+		grid.add_theme_constant_override("separation", 10)
+		for id in sold:
+			var cell := HBoxContainer.new()
+			cell.add_child(UI.icon(Sprites.item(id), 34))
+			cell.add_child(UI.label("×%d" % sold[id], 18))
+			grid.add_child(cell)
+		shop.add_child(grid)
+	cols.add_child(shop)
 	var next := func():
 		close_panel()
 		main.new_day()

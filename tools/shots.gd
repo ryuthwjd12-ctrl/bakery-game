@@ -25,12 +25,30 @@ func _ready():
 	main.current._cook(Label.new()); await _wait(1.0); await _shot("09_baking")
 	main.goto("village")
 	await _wait(1.5); await _shot("10_village")
-	main.current.player.position = Vector2(525, 260); await _wait(1.5); await _shot("11_village_shop")
+	await _wait(4.0); await _shot("10b_village_later")
+	main.current.player.position = Vector2(560, 250); await _wait(1.5); await _shot("11_village_shop")
 	main.hud.open_shop(); await _wait(0.4); await _shot("12_shop")
 	main.hud.close_panel()
-	main.goto("hall", "village")
+	# 문으로 걸어가서 다시 들어가지는지
+	var v = main.current
+	v.player.position = Vector2(700, 600)
+	await _wait(0.3)
+	v.player.walk_path(v.walk.find_path(v.player.position, v.BAKERY_DOOR))
+	await _wait(4.0)
+	print("re-entered hall: ", main.current_name)
+	if main.current_name != "hall":
+		main.goto("hall", "village")
 	GameState.add_stock("butter_cookie", 3)
 	await _wait(8.0); await _shot("13_hall_later")
+	for t in main.hall.tables:
+		if t.state == "ordering":
+			t.take_order()
+	if not GameState.orders.is_empty():
+		var t0 = GameState.orders[0]
+		GameState.add_stock(t0.order, 1)
+		GameState.take_stock(t0.order)
+		t0.serve()
+	await _wait(2.5); await _shot("13b_eating")
 	main.hud.open_pause(); await _wait(0.4); await _shot("14_pause")
 	main.hud.close_panel(); get_tree().paused = false
 	main.hud.open_options(false); await _wait(0.4); await _shot("15_options")

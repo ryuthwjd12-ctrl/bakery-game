@@ -6,61 +6,83 @@ const Table := preload("res://scripts/table.gd")
 const Animal := preload("res://scripts/animal.gd")
 const Waiter := preload("res://scripts/waiter.gd")
 
-## 빈 방 그림(1408x768)의 바닥 모양. 발이 이 안에 있어야 걸을 수 있어요.
-const FLOOR := [Vector2(688, 228), Vector2(1290, 515), Vector2(1010, 735),
-	Vector2(590, 740), Vector2(125, 520)]
-const DOOR := Vector2(1040, 600)
-const KITCHEN_DOOR := Vector2(395, 380)
-const CASE_SPOT := Vector2(430, 540)
-const TABLE_SPOTS := [Vector2(600, 470), Vector2(850, 395), Vector2(770, 625), Vector2(1075, 505)]
+## 가구가 그려진 가게 그림(1408x768) 기준 좌표예요. 발이 FLOOR 안, BLOCKS 밖에 있어야 걸을 수 있어요.
+## BLOCKS는 가구 자리와 그 뒤쪽까지 막아서, 주인공이 가구 뒤로 가서 그림이 겹치는 일이 없게 해요.
+const FLOOR := [Vector2(700, 240), Vector2(1335, 528), Vector2(1160, 612), Vector2(1160, 768),
+	Vector2(440, 768), Vector2(75, 548)]
+const BLOCKS := [
+	# 진열장·계산대·메뉴판과 그 뒤 벽쪽
+	[Vector2(75, 548), Vector2(205, 600), Vector2(300, 600), Vector2(480, 515), Vector2(600, 452),
+		Vector2(690, 402), Vector2(700, 240)],
+	# 안쪽 화분들
+	[Vector2(690, 236), Vector2(880, 322), Vector2(870, 345), Vector2(800, 322), Vector2(740, 300), Vector2(690, 272)],
+	# 가운데 탁자
+	[Vector2(690, 470), Vector2(760, 565), Vector2(830, 580), Vector2(945, 548), Vector2(940, 400),
+		Vector2(880, 372), Vector2(760, 372), Vector2(690, 400)],
+	# 왼쪽 아래 탁자
+	[Vector2(455, 640), Vector2(470, 730), Vector2(560, 755), Vector2(670, 745), Vector2(718, 690),
+		Vector2(712, 555), Vector2(650, 535), Vector2(530, 535), Vector2(455, 560)],
+	# 창가 탁자와 화분
+	[Vector2(985, 330), Vector2(990, 475), Vector2(1080, 495), Vector2(1135, 550), Vector2(1245, 550),
+		Vector2(1320, 540), Vector2(1335, 528), Vector2(1180, 345), Vector2(1060, 300), Vector2(1000, 300)],
+	# 앞쪽 화분
+	[Vector2(640, 680), Vector2(785, 680), Vector2(785, 768), Vector2(640, 768)],
+	# 앞문 벽
+	[Vector2(950, 575), Vector2(1160, 480), Vector2(1160, 768), Vector2(950, 768)],
+]
+const DOOR := Vector2(905, 705)  # 앞문 앞 발판
+const KITCHEN_DOOR := Vector2(945, 352)  # 안쪽 오른쪽 문(주방)
+const CASE_SPOT := Vector2(470, 560)  # 진열장 앞
+## 그림 속 의자: 앉는 자리, 탁자 위 음식 자리, 다가가서 설 자리, 왼쪽을 보는지
+const SEATS := [
+	{"seat": Vector2(728, 478), "food": Vector2(786, 462), "stand": Vector2(738, 600), "left": false},
+	{"seat": Vector2(896, 482), "food": Vector2(840, 462), "stand": Vector2(968, 505), "left": true},
+	{"seat": Vector2(505, 652), "food": Vector2(568, 642), "stand": Vector2(432, 690), "left": false},
+	{"seat": Vector2(674, 640), "food": Vector2(622, 642), "stand": Vector2(762, 640), "left": true},
+	{"seat": Vector2(1028, 392), "food": Vector2(1085, 382), "stand": Vector2(955, 430), "left": false},
+]
+const HERO_SCALE := 0.88
+const ANIMAL_SCALE := 1.05
 
 var main: Node
 var world := Node2D.new()
 var player
 var waiter
 var tables: Array = []
-var blockers: Array = []  # [center, radius-x, radius-y]
+var walk: WalkMap
 var spawn_left := 3.0
 var active := false
 var near = null
 var pending = null  # 클릭해서 걸어가는 중인 대상
-var case_icons := Node2D.new()
 var door_cooldown := 0.0
 
 
 func _ready() -> void:
 	var bg := Sprite2D.new()
-	bg.texture = Sprites.tex("backgrounds/hall_empty")
+	bg.texture = Sprites.tex("backgrounds/hall")
 	bg.centered = false
 	add_child(bg)
-	_deco("furniture/picture", Vector2(560, 175), 1.1)
-	_deco("furniture/rug_icon", Vector2(790, 600), 2.0)
-
 	world.y_sort_enabled = true
 	add_child(world)
-	var case_sp := _furniture("furniture/display_case", Vector2(330, 480), 1.9, 80, 30)
-	case_sp.add_child(case_icons)
-	_furniture("furniture/plant", Vector2(690, 268), 1.4, 30, 14)
-	_furniture("furniture/plant", Vector2(1235, 520), 1.4, 30, 14)
-	_furniture("furniture/lamp", Vector2(180, 540), 1.3, 18, 10)
+	walk = WalkMap.new(FLOOR, BLOCKS)
 
-	for p in TABLE_SPOTS:
+	for sd in SEATS:
 		var t := Table.new()
-		t.position = p
+		t.position = sd.seat
+		t.food_at = sd.food - sd.seat
+		t.stand = sd.stand
+		t.face_left = sd.left
 		t.left_table.connect(_on_left)
 		world.add_child(t)
 		tables.append(t)
-		blockers.append([p + Vector2(10, -14), 72.0, 30.0])
 
 	player = Player.new()
-	player.setup(GameState.hero, 0.68)
+	player.setup(GameState.hero, HERO_SCALE)
 	player.can_walk = can_walk
-	player.position = Vector2(700, 560)
+	player.position = Vector2(800, 640)
 	world.add_child(player)
 	if GameState.has_waiter:
 		hire_waiter()
-	GameState.changed.connect(_refresh_case)
-	_refresh_case()
 
 
 func hire_waiter() -> void:
@@ -68,57 +90,21 @@ func hire_waiter() -> void:
 		return
 	waiter = Waiter.new()
 	waiter.hall = self
-	waiter.home = Vector2(960, 330)
+	waiter.home = Vector2(870, 612)
 	waiter.position = DOOR
 	world.add_child(waiter)
 
 
-func _deco(path: String, at: Vector2, s: float) -> Sprite2D:
-	var sp := Sprite2D.new()
-	sp.texture = Sprites.tex(path)
-	sp.position = at
-	sp.scale = Vector2(s, s)
-	add_child(sp)
-	return sp
-
-
-func _furniture(path: String, at: Vector2, s: float, rx: float, ry: float) -> Sprite2D:
-	var sp := Sprite2D.new()
-	var tex := Sprites.tex(path)
-	sp.texture = tex
-	sp.offset = Vector2(0, -tex.get_height() / 2.0)
-	sp.scale = Vector2(s, s)
-	sp.position = at
-	world.add_child(sp)
-	blockers.append([at + Vector2(0, -ry * 0.5), rx, ry])
-	return sp
-
-
-## 진열대 위에 만들어 둔 음식을 보여 줘요.
-func _refresh_case() -> void:
-	for c in case_icons.get_children():
-		c.queue_free()
-	var i := 0
-	for id in GameState.stock:
-		for n in mini(GameState.stock[id], 3):
-			if i >= 8:
-				return
-			var s := Sprite2D.new()
-			s.texture = Sprites.item(id)
-			s.scale = Vector2(0.22, 0.22)
-			s.position = Vector2(-26 + (i % 4) * 15, -60 + (i / 4) * 16)
-			case_icons.add_child(s)
-			i += 1
-
-
 func can_walk(p: Vector2) -> bool:
-	if not Geometry2D.is_point_in_polygon(p, PackedVector2Array(FLOOR)):
-		return false
-	for b in blockers:
-		var d: Vector2 = p - b[0]
-		if (d.x * d.x) / (b[1] * b[1]) + (d.y * d.y) / (b[2] * b[2]) < 1.0:
-			return false
-	return true
+	return walk.can_walk(p)
+
+
+func find_path(from: Vector2, to: Vector2) -> Array:
+	return walk.find_path(from, to)
+
+
+func walk_player(p: Vector2) -> void:
+	player.walk_path(find_path(player.position, p))
 
 
 func set_active(on: bool, from := "") -> void:
@@ -130,9 +116,9 @@ func set_active(on: bool, from := "") -> void:
 		Audio.play_bgm("bgm_shop")
 		door_cooldown = 0.6
 		if from == "kitchen":
-			player.position = KITCHEN_DOOR + Vector2(60, 60)
+			player.position = KITCHEN_DOOR + Vector2(-10, 70)
 		elif from == "village":
-			player.position = DOOR + Vector2(-80, -40)
+			player.position = DOOR + Vector2(-50, -40)
 	else:
 		main.hud.set_prompt("", Vector2.ZERO)
 
@@ -144,13 +130,13 @@ func _actions() -> Array:
 		if t.busy:
 			continue
 		if t.state == "ordering":
-			out.append({"pos": t.interact_point(), "r": 70.0, "text": "주문 받기", "do": _take_order.bind(t)})
+			out.append({"pos": t.interact_point(), "r": 60.0, "text": "주문 받기", "do": _take_order.bind(t)})
 		elif t.state == "waiting":
-			out.append({"pos": t.interact_point(), "r": 70.0, "text": "음식 내주기", "do": _serve.bind(t)})
+			out.append({"pos": t.interact_point(), "r": 60.0, "text": "음식 내주기", "do": _serve.bind(t)})
 		elif t.state == "empty" and t.dirty:
-			out.append({"pos": t.interact_point(), "r": 70.0, "text": "치우기", "do": _clean.bind(t)})
-	out.append({"pos": KITCHEN_DOOR, "r": 60.0, "text": "주방으로", "do": func(): main.goto("kitchen", "hall"), "door": true})
-	out.append({"pos": DOOR, "r": 70.0, "text": "밖으로", "do": func(): main.goto("village", "hall"), "door": true})
+			out.append({"pos": t.interact_point(), "r": 60.0, "text": "치우기", "do": _clean.bind(t)})
+	out.append({"pos": KITCHEN_DOOR, "r": 50.0, "text": "주방으로", "do": func(): main.goto("kitchen", "hall"), "door": true})
+	out.append({"pos": DOOR, "r": 50.0, "text": "밖으로", "do": func(): main.goto("village", "hall"), "door": true})
 	return out
 
 
@@ -193,14 +179,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		for a in _actions():
 			if a.pos.distance_to(p) < 90 or _table_hit(a, p):
 				pending = a
-				player.walk_to(a.pos)
+				walk_player(a.pos)
 				return
-		player.walk_to(p)
+		walk_player(p)
 
 
 func _table_hit(a: Dictionary, p: Vector2) -> bool:
 	for t in tables:
-		if a.pos == t.interact_point() and Rect2(t.position + Vector2(-70, -190), Vector2(190, 200)).has_point(p):
+		if a.pos == t.interact_point() and Rect2(t.position + Vector2(-50, -150), Vector2(100, 170)).has_point(p):
 			return true
 	return false
 
@@ -219,7 +205,7 @@ func _serve(t) -> void:
 		GameState.toast.emit("아직 만든 음식이 없어요. 주방에서 만들어요.")
 		Audio.sfx("fail")
 		return
-	_fly_item(t.order, player.position + Vector2(0, -120), t.position + Vector2(-4, -84))
+	_fly_item(t.order, player.position + Vector2(0, -110), t.position + t.food_at)
 	t.serve()
 
 
@@ -271,11 +257,13 @@ func _spawn_tick(delta: float) -> void:
 	var kind: String = Sprites.ANIMALS.pick_random()
 	var order: String = GameState.menu_now().pick_random()
 	GameState.customer_spawned.emit(kind)
-	var a := Animal.new()
-	a.setup(kind, 0.8 if kind != "chick" else 0.9)
+	var a := _new_customer(kind)
 	a.position = DOOR
+	a.modulate.a = 0.0
 	world.add_child(a)
-	await a.walk_path([DOOR + Vector2(-60, -30), t.position + Vector2(80, -28)])
+	Audio.sfx("door")
+	a.create_tween().tween_property(a, "modulate:a", 1.0, 0.3)
+	await a.walk_path(find_path(DOOR, t.stand) + [t.position + Vector2(0, 6)])
 	a.queue_free()
 	if t.state == "coming":
 		t.seat(kind, order)
@@ -283,15 +271,20 @@ func _spawn_tick(delta: float) -> void:
 
 func _on_left(t, kind: String, _happy: bool) -> void:
 	update_cleanliness()
-	var a := Animal.new()
-	a.setup(kind, 0.8 if kind != "chick" else 0.9)
-	a.position = t.position + Vector2(80, -28)
+	var a := _new_customer(kind)
+	a.position = t.position + Vector2(0, 6)
 	world.add_child(a)
-	await a.walk_path([DOOR + Vector2(-60, -30), DOOR])
+	await a.walk_path([t.stand] + find_path(t.stand, DOOR))
 	Audio.sfx("door")
 	var tw := a.create_tween()
 	tw.tween_property(a, "modulate:a", 0.0, 0.3)
 	tw.tween_callback(a.queue_free)
+
+
+func _new_customer(kind: String) -> Node2D:
+	var a := Animal.new()
+	a.setup(kind, ANIMAL_SCALE * (0.9 if kind == "chick" else 1.0))
+	return a
 
 
 func update_cleanliness() -> void:
@@ -312,7 +305,7 @@ func reset_day() -> void:
 		t.dust.queue_redraw()
 	update_cleanliness()
 	spawn_left = 3.0
-	player.position = Vector2(700, 560)
+	player.position = Vector2(800, 640)
 
 
 # 알바생이 쓰는 함수들

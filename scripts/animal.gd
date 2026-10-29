@@ -7,6 +7,7 @@ var speed := 110.0
 var moving := false
 var _t := 0.0
 var _bouncy := false
+var _base := 1.0
 
 
 func setup(k: String, s: float) -> void:
@@ -15,6 +16,7 @@ func setup(k: String, s: float) -> void:
 	var h := Sprites.frame_height(_key("front"))
 	sprite.offset = Vector2(0, -h / 2.0)
 	sprite.scale = Vector2(s, s)
+	_base = s
 	sprite.animation = "front"
 	if sprite.get_parent() == null:
 		add_child(sprite)
@@ -34,6 +36,9 @@ func _process(delta: float) -> void:
 	else:
 		sprite.position.y = 0.0
 		sprite.rotation = 0.0
+		if not moving:
+			_t += delta
+			sprite.scale.y = _base * (1.0 + sin(_t * 2.4) * 0.015)
 
 
 func face(d: Vector2) -> void:

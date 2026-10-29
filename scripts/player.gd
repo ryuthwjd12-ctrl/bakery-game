@@ -9,7 +9,10 @@ var active := true
 var busy := false  # 청소처럼 잠깐 멈춰서 하는 일
 var can_walk: Callable  # func(Vector2) -> bool
 var target = null
+var waypoints: Array = []
+var base_scale := 1.0
 var _work_t := 0.0
+var _idle_t := 0.0
 
 
 func setup(hero: String, scale_f: float) -> void:
@@ -17,9 +20,10 @@ func setup(hero: String, scale_f: float) -> void:
 	sprite.sprite_frames = Sprites.frames_for(hero, ["front", "back", "right"])
 	sprite.offset = Vector2(0, -Sprites.frame_height(hero + "_front") / 2.0)
 	sprite.scale = Vector2(scale_f, scale_f)
+	base_scale = scale_f
 	sprite.animation = "front"
 	add_child(sprite)
-	speed = 230.0 * scale_f / 0.68
+	speed = 200.0 + 60.0 * scale_f
 
 
 func _process(delta: float) -> void:
@@ -42,17 +46,26 @@ func _process(delta: float) -> void:
 		v.y += 1
 	if v != Vector2.ZERO:
 		target = null
+		waypoints.clear()
 	elif target != null:
 		var d: Vector2 = target - position
 		if d.length() < 6.0:
-			target = null
-			arrived.emit()
-		else:
+			if waypoints.is_empty():
+				target = null
+				arrived.emit()
+			else:
+				target = waypoints.pop_front()
+				d = target - position
+		if target != null:
 			v = d
 	if v == Vector2.ZERO:
 		sprite.stop()
 		sprite.frame = 0
+		# 서 있을 때 숨쉬듯 살짝
+		_idle_t += delta
+		sprite.scale = Vector2(base_scale, base_scale * (1.0 + sin(_idle_t * 2.2) * 0.012))
 		return
+	sprite.scale = Vector2(base_scale, base_scale)
 	v = v.normalized()
 	var step := v * speed * delta
 	step.y *= 0.8  # 비스듬한 바닥이라 위아래는 조금 느리게
@@ -69,6 +82,7 @@ func _process(delta: float) -> void:
 		if target != null:
 			arrived.emit()
 		target = null
+		waypoints.clear()
 	face(v)
 	sprite.play()
 
@@ -86,13 +100,22 @@ func face(v: Vector2) -> void:
 
 
 func walk_to(p: Vector2) -> void:
+	waypoints.clear()
 	target = p
+
+
+func walk_path(points: Array) -> void:
+	if points.is_empty():
+		return
+	waypoints = points.duplicate()
+	target = waypoints.pop_front()
 
 
 ## 잠깐 일하는 동작(청소 등)
 func work(seconds: float) -> void:
 	busy = true
 	target = null
+	waypoints.clear()
 	sprite.stop()
 	await get_tree().create_timer(seconds).timeout
 	busy = false

@@ -111,7 +111,7 @@ func _reset_day() -> void:
 	picked_today = []
 	orders = []
 	day_over = false
-	today = {"served": 0, "earned": 0, "lost": 0, "new": 0}
+	today = {"served": 0, "earned": 0, "tips": 0, "spent": 0, "lost": 0, "new": 0, "sold": {}, "rep_start": rep}
 
 
 func _process(delta: float) -> void:
@@ -190,6 +190,7 @@ func buy(id: String, n: int) -> bool:
 	if n <= 0 or cost > gold:
 		return false
 	gold -= cost
+	today.spent = today.get("spent", 0) + cost
 	add_item(id, n)
 	return true
 

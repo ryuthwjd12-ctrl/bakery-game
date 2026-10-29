@@ -57,3 +57,20 @@ func _draw() -> void:
 		draw_rect(bar, Color("#EADFCB"))
 		var c := UI.PINK if fill > 0.3 else Color("#D9534F")
 		draw_rect(Rect2(bar.position, Vector2(bar.size.x * fill, bar.size.y)), c)
+		_draw_mood(Vector2(W / 2 - 2, -H - 14))
+
+
+## 기분 얼굴: 기다릴수록 웃음 → 무표정 → 찡그림
+func _draw_mood(c: Vector2) -> void:
+	var col := Color("#8BC98A") if fill > 0.6 else (Color("#F2C14E") if fill > 0.3 else Color("#E0675A"))
+	draw_circle(c, 13, UI.OUTLINE)
+	draw_circle(c, 11, col)
+	draw_circle(c + Vector2(-4, -3), 1.8, UI.OUTLINE)
+	draw_circle(c + Vector2(4, -3), 1.8, UI.OUTLINE)
+	if fill > 0.6:
+		draw_arc(c + Vector2(0, 1), 5, 0.3, PI - 0.3, 10, UI.OUTLINE, 2)
+	elif fill > 0.3:
+		draw_line(c + Vector2(-4, 4), c + Vector2(4, 4), UI.OUTLINE, 2)
+	else:
+		draw_arc(c + Vector2(0, 8), 5, PI + 0.3, TAU - 0.3, 10, UI.OUTLINE, 2)
+

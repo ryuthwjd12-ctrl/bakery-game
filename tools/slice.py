@@ -238,7 +238,7 @@ with open(os.path.join(HERE,'..','scripts','sprite_data.gd'),'w') as fh:
         fh.write(f'\t"{k}": ["{v["file"][:-4]}", {v["frame_w"]}, {v["frame_h"]}, {v["count"]}],\n')
     fh.write('}\n')
 # backgrounds
-for src,dst in [('33-bakery-empty-room.png','hall_empty.png'),('17-kitchen.png','kitchen.png'),('18-acorn-village.png','acorn_village.png')]:
+for src,dst in [('17-kitchen.png','kitchen.png'),('18-acorn-village.png','acorn_village.png')]:
     Image.open(R+src).convert('RGB').save(OUT+'backgrounds/'+dst)
 Image.open(R+I).convert('RGB').crop((828,436,1382,748)).save(OUT+'backgrounds/title.png')
 print(json.dumps(meta,indent=0))

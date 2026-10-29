@@ -93,13 +93,21 @@ func _ready() -> void:
 	add_child(ok)
 	add_child(UI.hotspot(OK_RECT, _cook.bind(ok)))
 
-	var clear := UI.button("비우기", _clear_slots, 18)
-	clear.position = Vector2(990, 690)
+	# 쓰레기통: 칸만 비우고 재료는 그대로 돌아가요
+	var clear := Button.new()
+	clear.icon = Sprites.tex("ui/trash")
+	clear.expand_icon = true
+	clear.custom_minimum_size = Vector2(52, 52)
+	clear.tooltip_text = "칸 비우기 (재료는 그대로)"
+	clear.position = Vector2(1004, 684)
+	clear.pressed.connect(func():
+		_bounce(clear, 0.15)
+		_clear_slots())
 	add_child(clear)
 
 	var oven_panel := PanelContainer.new()
 	oven_panel.add_theme_stylebox_override("panel", UI.box(Color(1, 0.97, 0.9, 0.92), UI.OUTLINE, 14, 2))
-	oven_panel.position = Vector2(1170, 150)
+	oven_panel.position = Vector2(1020, 62)
 	oven_panel.custom_minimum_size = Vector2(210, 0)
 	oven_box = VBoxContainer.new()
 	oven_panel.add_child(oven_box)
