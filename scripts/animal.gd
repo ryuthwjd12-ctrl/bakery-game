@@ -69,6 +69,9 @@ func walk_to(p: Vector2) -> void:
 
 func walk_path(points: Array) -> void:
 	for p in points:
+		if p is Dictionary:
+			position = p.tp
+			continue
 		await walk_to(p)
 
 

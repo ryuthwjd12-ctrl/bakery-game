@@ -87,6 +87,20 @@ var day_over := false
 var cleanliness := 100
 var orders: Array = []  # 주문 받은 순서대로의 손님 자리(실행 중에만)
 var today := {}
+## 가게 꾸미기: 별관 탁자 세트 수(0~4), 화분 수(0~2)
+var annex_tables := 0
+var decor := 0
+## 모험: 체력·마나, 가진 무기와 장착한 무기
+var hp := 100
+var mp := 40
+var weapons: Array = ["spatula"]
+var weapon := "spatula"
+var quests_done: Array = []
+
+const SAVE_KEYS := ["hero", "gold", "day", "inv", "stock", "known", "oven", "rep", "has_waiter", "tutorial",
+	"annex_tables", "decor", "hp", "mp", "weapons", "weapon", "quests_done"]
+const ANNEX_MAX := 4
+const DECOR_MAX := 2
 
 
 func new_game(h: String) -> void:
@@ -102,8 +116,23 @@ func new_game(h: String) -> void:
 	rep = 0
 	has_waiter = false
 	tutorial = {}
+	annex_tables = 0
+	decor = 0
+	hp = max_hp()
+	mp = max_mp()
+	weapons = ["spatula"]
+	weapon = "spatula"
+	quests_done = []
 	_reset_day()
 	changed.emit()
+
+
+func max_hp() -> int:
+	return 100 + (level() - 1) * 20
+
+
+func max_mp() -> int:
+	return 40 + (level() - 1) * 10
 
 
 func _reset_day() -> void:
@@ -134,6 +163,9 @@ func _process(delta: float) -> void:
 
 func next_day() -> void:
 	day += 1
+	# 자고 나면 체력·마나가 다 차요
+	hp = max_hp()
+	mp = max_mp()
 	_reset_day()
 	save_game()
 	changed.emit()
@@ -303,10 +335,9 @@ func tutorial_done() -> bool:
 
 
 func save_game() -> void:
-	var data := {
-		"hero": hero, "gold": gold, "day": day, "inv": inv, "stock": stock,
-		"known": known, "oven": oven, "rep": rep, "has_waiter": has_waiter, "tutorial": tutorial,
-	}
+	var data := {}
+	for k in SAVE_KEYS:
+		data[k] = get(k)
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f:
 		f.store_string(JSON.stringify(data))
@@ -333,6 +364,13 @@ func load_game() -> bool:
 	rep = int(data.get("rep", 0))
 	has_waiter = data.get("has_waiter", false)
 	tutorial = data.get("tutorial", {})
+	annex_tables = int(data.get("annex_tables", 0))
+	decor = int(data.get("decor", 0))
+	hp = int(data.get("hp", max_hp()))
+	mp = int(data.get("mp", max_mp()))
+	weapons = data.get("weapons", ["spatula"])
+	weapon = data.get("weapon", "spatula")
+	quests_done = data.get("quests_done", [])
 	_reset_day()
 	changed.emit()
 	return true

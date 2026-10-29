@@ -5,6 +5,17 @@ func _ready():
 	add_child(main)
 	await get_tree().process_frame
 	main.start("female", false)
+	var h = main.hall
+	for i in 4:
+		GameState.annex_tables += 1
+		h.add_annex_set()
+	print("walkable spots: ", h.can_walk(h.HALL_ENTRY), h.can_walk(h.ANNEX_ENTRY + Vector2(h.ANNEX_X, 0)),
+		h.can_walk(h.KITCHEN_SPOT), h.can_walk(h.KITCHEN_SPOT + Vector2(30, 60)), h.can_walk(h.DOOR), h.can_walk(h.CASE_SPOT),
+		h.can_walk(Vector2(h.ANNEX_X + 915, 705)), h.can_walk(h.ANNEX_DOOR), h.can_walk(h.ANNEX_BACK + Vector2(h.ANNEX_X, 0)))
+	for t in h.tables:
+		if not h.can_walk(t.stand):
+			print("stand blocked: ", t.stand)
+	print("cross path: ", h.find_path(Vector2(800, 640), Vector2(h.ANNEX_X + 600, 600)).size())
 	print("cook ok: ", GameState.cook(["bowl", "flour", "butter", "sugar"]))
 	print("cook fail: ", GameState.cook(["flour", "milk"]))
 	GameState.add_stock("butter_cookie", 5); GameState.add_stock("warm_milk", 5); GameState.add_stock("milk_bread", 5)

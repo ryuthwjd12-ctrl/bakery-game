@@ -1,8 +1,8 @@
 """배경 그림 정리: 홀 메뉴판의 영어 글자를 지우고, 모든 배경 오른쪽 아래의 생성 표시(반투명 별)를 지워요.
-python3 tools/clean_backgrounds.py  (clean_signs.py, draw_kitchen.py 다음에 실행)"""
+python3 tools/clean_backgrounds.py [--all]  (--all 은 clean_signs.py, draw_kitchen.py 를 다시 돌린 뒤에만)"""
 import os, sys
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 from scipy import ndimage
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -35,8 +35,21 @@ def save(im, name):
 
 
 hall = np.array(Image.open(os.path.join(ROOT, 'art/raw/16-bakery-hall.png')).convert('RGB')).astype(float)
-save(unstar(erase_menu_text(hall)), 'hall.png')
-for name in ['kitchen.png', 'acorn_village.png', 'title.png']:
+empty = np.array(Image.open(os.path.join(ROOT, 'art/raw/33-bakery-empty-room.png')).convert('RGB')).astype(float)
+
+
+def open_right_door(im):
+    """오른쪽 안쪽 문 너머(원래 개수대)를 빈 방 그림의 밝은 통로로 바꿔 별관으로 이어지게 해요."""
+    m = Image.new('L', (im.shape[1], im.shape[0]), 0)
+    ImageDraw.Draw(m).polygon([(903, 70), (998, 120), (998, 345), (903, 300)], fill=255)
+    m = np.array(m.filter(ImageFilter.GaussianBlur(1.5))).astype(float)[..., None] / 255
+    return im * (1 - m) + empty * m
+
+
+save(unstar(open_right_door(erase_menu_text(hall))), 'hall.png')
+save(unstar(empty), 'annex.png')
+# 주방·마을·제목 그림은 다른 스크립트가 만든 결과를 고쳐요. 두 번 지우면 안 되니 --all 일 때만.
+for name in (['kitchen.png', 'acorn_village.png', 'title.png'] if '--all' in sys.argv else []):
     im = np.array(Image.open(os.path.join(BG, name)).convert('RGB')).astype(float)
     save(unstar(im), name)
 print('done')

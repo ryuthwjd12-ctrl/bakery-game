@@ -51,7 +51,11 @@ func walk_to(p: Vector2, carrying := false) -> void:
 		await _step_to(q, carrying)
 
 
-func _step_to(p: Vector2, carrying: bool) -> void:
+func _step_to(q, carrying: bool) -> void:
+	if q is Dictionary:
+		position = q.tp  # 문을 지나 다른 방으로
+		return
+	var p: Vector2 = q
 	var d := p - position
 	if d.length() < 1.0:
 		return

@@ -54,7 +54,7 @@ func _process(delta: float) -> void:
 				target = null
 				arrived.emit()
 			else:
-				target = waypoints.pop_front()
+				target = _next_point()
 				d = target - position
 		if target != null:
 			v = d
@@ -108,7 +108,17 @@ func walk_path(points: Array) -> void:
 	if points.is_empty():
 		return
 	waypoints = points.duplicate()
-	target = waypoints.pop_front()
+	target = _next_point()
+
+
+## 다음 걸어갈 점. {"tp": 위치}는 문을 지나 순간 이동해요.
+func _next_point() -> Vector2:
+	var q = waypoints.pop_front()
+	while q is Dictionary:
+		position = q.tp
+		Audio.sfx("door")
+		q = waypoints.pop_front() if not waypoints.is_empty() else position
+	return q
 
 
 ## 잠깐 일하는 동작(청소 등)

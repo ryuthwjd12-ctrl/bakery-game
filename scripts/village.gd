@@ -174,7 +174,7 @@ func _actions() -> Array:
 	var out: Array = [
 		{"pos": Vector2(560, 240), "r": 40.0, "text": "재료 가게", "do": func(): main.hud.open_shop()},
 		{"pos": Vector2(930, 262), "r": 36.0, "text": "그릇 가게", "do": _soon},
-		{"pos": Vector2(1065, 335), "r": 36.0, "text": "가구점", "do": _soon},
+		{"pos": Vector2(1065, 335), "r": 36.0, "text": "가구점", "do": _furniture_shop},
 		{"pos": Vector2(310, 615), "r": 36.0, "text": "도구점", "do": _soon},
 		{"pos": Vector2(1110, 610), "r": 36.0, "text": "옷 가게", "do": _soon},
 	]
@@ -226,6 +226,33 @@ func _unhandled_input(event: InputEvent) -> void:
 		if Geometry2D.is_point_in_polygon(to, PackedVector2Array(BLOCKS[14])):
 			to = BAKERY_DOOR
 		player.walk_path(walk.find_path(player.position, to))
+
+
+func _furniture_shop() -> void:
+	var hall = main.hall
+	var set_price := 300 + GameState.annex_tables * 100
+	var entries := [
+		{"icon": Sprites.tex("furniture/table_set"), "name": "둥근 탁자 세트", "price": set_price,
+			"note": "가게 별관에 놓여요. 손님 두 명이 더 앉을 수 있어요. (%d/%d)" % [GameState.annex_tables, GameState.ANNEX_MAX],
+			"block": func(): return "자리가 꽉 찼어요" if GameState.annex_tables >= GameState.ANNEX_MAX else "",
+			"buy": func():
+				GameState.annex_tables += 1
+				hall.add_annex_set()
+				GameState.toast.emit("별관에 탁자를 놓았어요! 가게 안쪽 오른쪽 문으로 가 봐요.")},
+		{"icon": Sprites.tex("furniture/plant_big"), "name": "큰 화분", "price": 150,
+			"note": "가게가 예뻐져서 손님이 더 자주 오고 팁이 늘어요.",
+			"block": func(): return "이미 놓았어요" if GameState.decor >= 1 else "",
+			"buy": func():
+				GameState.decor = 1
+				hall.add_decor()},
+		{"icon": Sprites.tex("furniture/plant_small"), "name": "작은 화분", "price": 100,
+			"note": "큰 화분을 놓은 다음에 놓을 수 있어요. 효과는 같아요.",
+			"block": func(): return "이미 놓았어요" if GameState.decor >= 2 else ("큰 화분 먼저" if GameState.decor < 1 else ""),
+			"buy": func():
+				GameState.decor = 2
+				hall.add_decor()},
+	]
+	main.hud.open_store("숲속 가구점", "산 가구는 가게 별관에 바로 놓여요.", entries)
 
 
 func _soon() -> void:

@@ -383,6 +383,40 @@ func _shop_row(id: String) -> HBoxContainer:
 	return row
 
 
+## 한 개씩 사는 가게(가구점, 도구점). entries: {icon, name, price, note, block: Callable -> String, buy: Callable}
+func open_store(title: String, desc: String, entries: Array) -> void:
+	Audio.sfx("door")
+	var vb := window(title, 820)
+	vb.add_child(UI.label(desc, 18, UI.CHESTNUT))
+	for e in entries:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 14)
+		row.add_child(UI.icon(e.icon, 64))
+		var col := VBoxContainer.new()
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		col.add_child(UI.label("%s  (%d골드)" % [e.name, e.price], 22))
+		col.add_child(UI.label(e.note, 16, Color("#9A8B7A")))
+		row.add_child(col)
+		var why: String = e.block.call()
+		if why != "":
+			row.add_child(UI.label(why, 18, Color("#9A8B7A")))
+		else:
+			var buy := func():
+				if GameState.gold < e.price:
+					Audio.sfx("fail")
+					show_toast("골드가 모자라요.")
+					return
+				GameState.gold -= e.price
+				GameState.today.spent = GameState.today.get("spent", 0) + e.price
+				e.buy.call()
+				GameState.changed.emit()
+				GameState.save_game()
+				Audio.sfx("coin")
+				open_store(title, desc, entries)
+			row.add_child(UI.button("사기", buy, 20))
+		vb.add_child(row)
+
+
 func confirm(text: String, yes: Callable) -> void:
 	var vb := window("확인", 560)
 	var l := UI.label(text, 20)
