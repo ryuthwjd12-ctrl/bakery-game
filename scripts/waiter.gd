@@ -1,5 +1,5 @@
 extends Node2D
-## 알바생 강아지. 진열장에서 음식을 꺼내 손님에게 갖다주고, 손님이 떠난 자리를 쓸어요.
+## 알바생 강아지(고용하면 와요). 주문 받기, 받은 순서대로 음식 내주기, 자리 치우기를 도와줘요.
 
 var hall: Node2D
 var sprite: AnimatedSprite2D
@@ -23,6 +23,10 @@ func _process(_delta: float) -> void:
 	var t = hall.find_serve_job()
 	if t:
 		_serve(t)
+		return
+	t = hall.find_order_job()
+	if t:
+		_take(t)
 		return
 	t = hall.find_clean_job()
 	if t:
@@ -61,31 +65,43 @@ func walk_to(p: Vector2, carrying := false) -> void:
 
 func _serve(t) -> void:
 	busy = true
-	t.assigned = true
+	t.busy = true
 	var order: String = t.order
 	await walk_to(hall.CASE_SPOT)
-	if t.state != "waiting" or t.order != order or not GameState.take_stock(order):
-		t.assigned = false
+	if t.state != "waiting" or not GameState.take_stock(order):
+		t.busy = false
 		busy = false
 		return
-	await walk_to(t.position + Vector2(-80, 12), true)
+	await walk_to(t.interact_point(), true)
+	t.busy = false
 	if t.state == "waiting" and t.order == order:
 		t.serve()
 	else:
-		GameState.add_stock(order, 1)  # 손님이 가 버렸으면 다시 진열장으로
+		GameState.add_stock(order, 1)  # 손님이 가 버렸으면 다시 진열대로
+	_idle()
+	busy = false
+
+
+func _take(t) -> void:
+	busy = true
+	t.busy = true
+	await walk_to(t.interact_point())
+	t.busy = false
+	if t.state == "ordering":
+		t.take_order()
 	_idle()
 	busy = false
 
 
 func _clean(t) -> void:
 	busy = true
-	t.set_meta("cleaning", true)
-	await walk_to(t.position + Vector2(-70, 16))
+	t.busy = true
+	await walk_to(t.interact_point())
 	sprite.animation = "sweep"
 	sprite.play()
+	Audio.sfx("sweep")
 	await get_tree().create_timer(2.0).timeout
 	t.clean()
-	t.remove_meta("cleaning")
 	hall.update_cleanliness()
 	_idle()
 	busy = false

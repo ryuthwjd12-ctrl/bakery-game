@@ -1,0 +1,59 @@
+extends Node2D
+## 손님 머리 위 생각 풍선. 글자 없이 그림(또는 느낌표)만 보여 줘요.
+
+var icon := Sprite2D.new()
+var mark := Label.new()
+var fill := 1.0  # 기다림 바 (0~1)
+var show_bar := true
+const W := 86.0
+const H := 74.0
+
+
+func _ready() -> void:
+	z_index = 60
+	icon.position = Vector2(0, -H / 2 - 18)
+	add_child(icon)
+	mark.text = "!"
+	mark.add_theme_font_size_override("font_size", 46)
+	mark.add_theme_color_override("font_color", UI.PINK)
+	mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	mark.size = Vector2(W, 60)
+	mark.position = Vector2(-W / 2, -H - 14)
+	add_child(mark)
+
+
+func show_mark() -> void:
+	icon.visible = false
+	mark.visible = true
+	visible = true
+	queue_redraw()
+
+
+func show_item(id: String) -> void:
+	icon.texture = Sprites.item(id)
+	var s := 54.0 / maxf(icon.texture.get_width(), icon.texture.get_height())
+	icon.scale = Vector2(s, s)
+	icon.visible = true
+	mark.visible = false
+	visible = true
+	queue_redraw()
+
+
+func set_fill(f: float) -> void:
+	fill = clampf(f, 0.0, 1.0)
+	queue_redraw()
+
+
+func _draw() -> void:
+	var r := Rect2(-W / 2, -H - 18, W, H)
+	var sb := UI.box(Color.WHITE, UI.OUTLINE, 26, 3)
+	draw_style_box(sb, r)
+	draw_circle(Vector2(-6, -12), 7, UI.OUTLINE)
+	draw_circle(Vector2(-6, -12), 5, Color.WHITE)
+	draw_circle(Vector2(-12, -2), 4, UI.OUTLINE)
+	draw_circle(Vector2(-12, -2), 2.5, Color.WHITE)
+	if show_bar:
+		var bar := Rect2(-W / 2 + 10, -26, W - 20, 6)
+		draw_rect(bar, Color("#EADFCB"))
+		var c := UI.PINK if fill > 0.3 else Color("#D9534F")
+		draw_rect(Rect2(bar.position, Vector2(bar.size.x * fill, bar.size.y)), c)

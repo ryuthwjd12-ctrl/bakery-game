@@ -1,5 +1,5 @@
 extends Node
-## 화면 전환을 맡아요. 홀은 한 번 만들면 계속 살아 있어서, 주방이나 마을에 가 있어도 알바생이 손님을 받아요.
+## 화면 전환을 맡아요. 홀은 한 번 만들면 계속 살아 있어서, 주방이나 마을에 가 있어도 손님이 오가요.
 
 const Hall := preload("res://scripts/hall.gd")
 const Kitchen := preload("res://scripts/kitchen.gd")
@@ -23,18 +23,26 @@ func _ready() -> void:
 
 
 func start(h: String, load_save: bool) -> void:
+	get_tree().paused = false
 	if load_save:
 		GameState.load_game()
 	else:
 		GameState.new_game(h)
 	if hall:
-		hall.queue_free()
+		hall.free()
 	hall = Hall.new()
 	hall.main = self
 	add_child(hall)
 	move_child(hall, 0)
 	GameState.clock_running = true
 	goto("hall")
+
+
+func new_day() -> void:
+	GameState.next_day()
+	hall.reset_day()
+	goto("hall")
+	hud.show_toast("%d일차 아침이에요. 오늘도 힘내요!" % GameState.day)
 
 
 func goto(name: String, from := "") -> void:
@@ -45,6 +53,10 @@ func goto(name: String, from := "") -> void:
 		hall.set_active(false)
 	match name:
 		"title":
+			GameState.clock_running = false
+			if hall:
+				hall.queue_free()
+				hall = null
 			current = Title.new()
 			current.main = self
 			add_child(current)
