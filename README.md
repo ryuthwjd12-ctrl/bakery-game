@@ -7,9 +7,8 @@
 ## 집 컴퓨터에서 실행하기
 
 1. [Godot 4.3](https://godotengine.org/download/archive/4.3-stable/) 표준판(Standard)을 받아요. 설치 없이 압축만 풀면 돼요.
-2. 이 저장소를 받아요. 그림 파일이 Git LFS라서 처음 한 번 `git lfs install` 이 필요해요.
+2. 이 저장소를 받아요.
    ```
-   git lfs install
    git clone https://github.com/ryuthwjd12-ctrl/bakery-game.git
    ```
 3. Godot를 열고 **가져오기(Import)** 에서 `bakery-game/project.godot` 를 골라요.
@@ -67,4 +66,5 @@ python3 tools/slice.py
 
 - 그림은 AI(제미나이)로 만들었어요. 스팀에 올릴 때 AI 사용을 밝혀야 해요.
 - 마을 그림 간판에 영어 글자가 있어요. 글자 없는 그림으로 바꿀 예정이에요.
+- 그림은 지금 Git LFS 없이 일반 파일로 올라가 있어요(약 57MB). 그림이 많이 늘어나면 LFS로 옮겨요.
 - 글꼴은 [Jua](https://fonts.google.com/specimen/Jua) (SIL Open Font License, `assets/fonts/OFL.txt`).
