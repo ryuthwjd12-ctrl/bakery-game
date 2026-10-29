@@ -22,7 +22,9 @@ func _ready() -> void:
 	add_child(mark)
 
 
-func show_mark() -> void:
+func show_mark(special := false) -> void:
+	mark.text = "★" if special else "!"
+	mark.add_theme_color_override("font_color", Color("#E8A33D") if special else UI.PINK)
 	icon.visible = false
 	mark.visible = true
 	visible = true

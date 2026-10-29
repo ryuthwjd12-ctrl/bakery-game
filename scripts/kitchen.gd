@@ -124,6 +124,20 @@ func _ready() -> void:
 	back.position = Vector2(16, 70)
 	add_child(back)
 
+	# 받은 부탁이 있으면 위쪽에 스페셜 요리를 보여 줘요
+	if GameState.active_quest != "":
+		var q := GameState.quest(GameState.active_quest)
+		var banner := PanelContainer.new()
+		banner.add_theme_stylebox_override("panel", UI.box(Color(1, 0.97, 0.88, 0.95), Color("#E8A33D"), 14, 3))
+		var hb := HBoxContainer.new()
+		hb.add_theme_constant_override("separation", 6)
+		hb.add_child(UI.label("★ 스페셜 요리: %s  " % GameState.item_name(q.dish), 22, Color("#B8741A")))
+		for n in GameState.recipe(q.dish).needs:
+			hb.add_child(UI.icon(Sprites.item(n), 34))
+		banner.add_child(hb)
+		add_child(banner)
+		banner.reset_size()
+		banner.position = Vector2((1408 - banner.size.x) / 2, 12)
 	GameState.changed.connect(_refresh)
 	_refresh()
 	Audio.play_bgm("bgm_shop")

@@ -18,6 +18,7 @@ var patience_max := 1.0
 var dirty := false
 var busy := false  # 누군가(주인공·알바생) 이 자리 일을 하는 중
 var eat_left := 0.0
+var quest_id := ""  # 부탁 손님이면 부탁 id
 ## 그림 속 의자 자리(이 노드의 위치), 탁자 위 음식 자리, 손님에게 다가갈 바닥 자리
 var food_at := Vector2.ZERO
 var stand := Vector2.ZERO
@@ -71,9 +72,10 @@ func reserve() -> void:
 	state = "coming"
 
 
-func seat(k: String, o: String) -> void:
+func seat(k: String, o: String, q := "") -> void:
 	kind = k
 	order = o
+	quest_id = q
 	state = "ordering"
 	patience_max = ORDER_PATIENCE
 	patience = patience_max
@@ -86,13 +88,13 @@ func seat(k: String, o: String) -> void:
 	animal.play("wait")
 	animal.flip_h = face_left
 	animal.visible = true
-	bubble.show_mark()
+	bubble.show_mark(q != "")
 	bubble.set_fill(1.0)
 
 
 func take_order() -> void:
 	state = "waiting"
-	patience_max = FOOD_PATIENCE
+	patience_max = FOOD_PATIENCE * (2.0 if quest_id != "" else 1.0)
 	patience = patience_max
 	bubble.show_item(order)
 	GameState.orders.append(self)
@@ -127,6 +129,9 @@ func _process(delta: float) -> void:
 			bubble.set_fill(patience / patience_max)
 			if patience <= 0:
 				GameState.toast.emit("손님이 기다리다 화가 나서 돌아갔어요…")
+				if quest_id != "" and GameState.active_quest == quest_id:
+					GameState.active_quest = ""
+				quest_id = ""
 				GameState.today.lost += 1
 				GameState.add_rep(-1)
 				_leave(false)
@@ -140,6 +145,8 @@ func _process(delta: float) -> void:
 			if eat_left <= 0:
 				var price: int = GameState.ITEMS[order].price
 				var tip := (5 if GameState.cleanliness >= 80 else 0) + GameState.decor * 2
+				if quest_id != "":
+					_finish_quest()
 				GameState.earn(price + tip)
 				GameState.today.tips = GameState.today.get("tips", 0) + tip
 				GameState.today.served += 1
@@ -150,6 +157,26 @@ func _process(delta: float) -> void:
 				_float_text("+%d" % (price + tip))
 				Audio.sfx("coin")
 				_leave(true)
+
+
+func _finish_quest() -> void:
+	var q := GameState.quest(quest_id)
+	GameState.quests_done.append(quest_id)
+	GameState.active_quest = ""
+	GameState.earn(q.reward)
+	GameState.add_rep(q.rep)
+	GameState.today["quest"] = q.dish
+	Audio.sfx("sparkle")
+	GameState.toast.emit("스페셜 요리 대성공! 고마움의 선물로 %d골드를 받았어요." % q.reward)
+	quest_id = ""
+
+
+## 부탁을 거절하면 손님이 아쉬워하며 돌아가요(평판은 그대로).
+func decline() -> void:
+	if GameState.active_quest == quest_id:
+		GameState.active_quest = ""
+	quest_id = ""
+	_leave(false, false)
 
 
 func _float_text(t: String) -> void:
@@ -165,7 +192,7 @@ func _float_text(t: String) -> void:
 	tw.tween_callback(l.queue_free)
 
 
-func _leave(happy: bool) -> void:
+func _leave(happy: bool, dirty_after := true) -> void:
 	var k := kind
 	GameState.orders.erase(self)
 	state = "empty"
@@ -183,7 +210,7 @@ func _leave(happy: bool) -> void:
 	kind = ""
 	order = ""
 	busy = false
-	if happy:
+	if happy and dirty_after:
 		dirty = true
 		dust.queue_redraw()
 	left_table.emit(self, k, happy)

@@ -7,6 +7,7 @@ signal toast(text: String)
 signal day_ended(summary: Dictionary)
 signal level_up(level: int)
 signal customer_spawned(kind: String)
+signal customer_left(kind: String)
 signal tutorial_changed
 
 const SAVE_PATH := "user://save.json"
@@ -34,6 +35,11 @@ const ITEMS := {
 	"milk_bread": {"name": "우유 식빵", "kind": "food", "price": 40, "bake": 12.0},
 	"raspberry_cake": {"name": "산딸기 생크림 케이크", "kind": "food", "price": 95, "bake": 15.0},
 	"warm_milk": {"name": "따뜻한 우유", "kind": "food", "price": 15, "bake": 0.0},
+	# 스페셜 요리(부탁 손님만 주문해요)
+	"heart_cookie": {"name": "산딸기 하트 쿠키", "kind": "food", "price": 80, "bake": 10.0},
+	"acorn_cookie": {"name": "초코 도토리 쿠키", "kind": "food", "price": 90, "bake": 10.0},
+	"flower_cookie": {"name": "생크림 꽃 쿠키", "kind": "food", "price": 100, "bake": 10.0},
+	"cinnamon_roll": {"name": "폭신 시나몬롤", "kind": "food", "price": 110, "bake": 12.0},
 }
 
 ## 넣는 순서는 상관없어요. 도구는 닳지 않고, 재료는 성공해도 실패해도 사라져요.
@@ -45,6 +51,21 @@ const RECIPES := [
 	{"id": "jam_cookie", "needs": ["bowl", "flour", "butter", "raspberry"]},
 	{"id": "star_cookie", "needs": ["flour", "butter", "sugar", "egg", "star_cutter"]},
 	{"id": "raspberry_cake", "needs": ["cake_tin", "flour", "egg", "cream", "raspberry"]},
+	{"id": "heart_cookie", "needs": ["bowl", "flour", "butter", "sugar", "raspberry"]},
+	{"id": "acorn_cookie", "needs": ["bowl", "flour", "butter", "chocolate", "egg"]},
+	{"id": "flower_cookie", "needs": ["flour", "sugar", "egg", "cream", "star_cutter"]},
+	{"id": "cinnamon_roll", "needs": ["cake_tin", "flour", "butter", "sugar", "cream"]},
+]
+## 가끔 오는 부탁 손님. 사연을 듣고 스페셜 요리를 만들어 주면 큰 보상을 받아요.
+const QUESTS := [
+	{"id": "heart", "kind": "rabbit", "dish": "heart_cookie", "reward": 200, "rep": 4, "min_day": 2,
+		"story": "저… 좋아하는 친구가 있는데요, 오늘 마음을 전하고 싶어요.\n산딸기가 들어간 하트 쿠키를 만들어 줄 수 있어요?"},
+	{"id": "acorn", "kind": "squirrel", "dish": "acorn_cookie", "reward": 220, "rep": 4, "min_day": 3,
+		"story": "겨울 준비로 도토리를 모으다 너무 지쳤어요.\n달걀을 넣은 초코 도토리 쿠키라면 힘이 날 것 같아요!"},
+	{"id": "flower", "kind": "deer", "dish": "flower_cookie", "reward": 260, "rep": 5, "min_day": 4,
+		"story": "내일이 할머니 생신이에요. 꽃을 좋아하시거든요.\n생크림을 올린 꽃 모양 쿠키를 선물하고 싶어요."},
+	{"id": "cinnamon", "kind": "bear", "dish": "cinnamon_roll", "reward": 300, "rep": 6, "min_day": 5,
+		"story": "겨울잠에서 막 깼더니 배가 너무 고파요…\n케이크 틀에 구운 폭신하고 달콤한 빵이 먹고 싶어요."},
 ]
 ## 처음 레시피는 주방 조합 칸에 흐린 그림자로 알려 줘요.
 const STARTER := ["butter_cookie", "warm_milk", "milk_bread"]
@@ -96,6 +117,8 @@ var mp := 40
 var weapons: Array = ["spatula"]
 var weapon := "spatula"
 var quests_done: Array = []
+var active_quest := ""  # 받은 부탁(그날만)
+var quest_seen_today := false
 
 const SAVE_KEYS := ["hero", "gold", "day", "inv", "stock", "known", "oven", "rep", "has_waiter", "tutorial",
 	"annex_tables", "decor", "hp", "mp", "weapons", "weapon", "quests_done"]
@@ -139,6 +162,8 @@ func _reset_day() -> void:
 	minutes = DAY_START
 	picked_today = []
 	orders = []
+	active_quest = ""
+	quest_seen_today = false
 	day_over = false
 	today = {"served": 0, "earned": 0, "tips": 0, "spent": 0, "lost": 0, "new": 0, "sold": {}, "rep_start": rep}
 
@@ -281,8 +306,25 @@ func find_recipe(slots: Array) -> Dictionary:
 	return {}
 
 
-## 주방 조합 칸에 흐리게 보여 줄 레시피(처음 레시피만)
+func quest(id: String) -> Dictionary:
+	for q in QUESTS:
+		if q.id == id:
+			return q
+	return {}
+
+
+## 오늘 올 수 있는 다음 부탁(차례대로)
+func next_quest() -> Dictionary:
+	for q in QUESTS:
+		if not quests_done.has(q.id):
+			return q if day >= q.min_day else {}
+	return {}
+
+
+## 주방 조합 칸에 흐리게 보여 줄 레시피(처음 레시피와 받은 스페셜 요리)
 func hint_recipe() -> Dictionary:
+	if active_quest != "":
+		return recipe(quest(active_quest).dish)
 	for t in orders:
 		if is_instance_valid(t) and STARTER.has(t.order):
 			return recipe(t.order)

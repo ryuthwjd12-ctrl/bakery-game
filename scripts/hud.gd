@@ -417,6 +417,45 @@ func open_store(title: String, desc: String, entries: Array) -> void:
 		vb.add_child(row)
 
 
+## 부탁 손님 이야기 창: 얼굴, 사연, 스페셜 요리와 레시피
+func open_quest(q: Dictionary, accept: Callable, decline: Callable) -> void:
+	Audio.sfx("sparkle")
+	var vb := window("부탁 손님", 760, false)
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 18)
+	hb.add_child(UI.icon(Sprites.first_frame(q.kind + "_front"), 120))
+	var col := VBoxContainer.new()
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var story := UI.label(q.story, 20)
+	story.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	story.custom_minimum_size.x = 580
+	col.add_child(story)
+	col.add_child(UI.label("스페셜 요리: %s" % GameState.item_name(q.dish), 22, UI.PINK))
+	var rec := HBoxContainer.new()
+	rec.add_theme_constant_override("separation", 4)
+	var needs: Array = GameState.recipe(q.dish).needs
+	for i in needs.size():
+		rec.add_child(UI.icon(Sprites.item(needs[i]), 44))
+		if i < needs.size() - 1:
+			rec.add_child(UI.label("+", 22, UI.CHESTNUT))
+	rec.add_child(UI.label("  →  ", 22, UI.CHESTNUT))
+	rec.add_child(UI.icon(Sprites.item(q.dish), 52))
+	col.add_child(rec)
+	col.add_child(UI.label("사례: %d골드, 평판 +%d" % [q.reward, q.rep], 18, Color("#B8741A")))
+	hb.add_child(col)
+	vb.add_child(hb)
+	var btns := HBoxContainer.new()
+	btns.alignment = BoxContainer.ALIGNMENT_CENTER
+	btns.add_theme_constant_override("separation", 24)
+	btns.add_child(UI.button("만들어 줄게요", func():
+		close_panel()
+		accept.call(), 22))
+	btns.add_child(UI.button("오늘은 어려워요", func():
+		close_panel()
+		decline.call(), 22))
+	vb.add_child(btns)
+
+
 func confirm(text: String, yes: Callable) -> void:
 	var vb := window("확인", 560)
 	var l := UI.label(text, 20)
@@ -541,6 +580,8 @@ func _on_day_ended(s: Dictionary) -> void:
 	var rep_d: int = GameState.rep - int(s.get("rep_start", GameState.rep))
 	shop.add_child(UI.label("평판  %s%d   (가게 Lv.%d)" % ["+" if rep_d >= 0 else "", rep_d, GameState.level()], 18))
 	shop.add_child(UI.label("새로 찾은 레시피  %d개" % s.new, 18))
+	if s.has("quest"):
+		shop.add_child(UI.label("스페셜 요리 성공: %s" % GameState.item_name(s.quest), 18, UI.PINK))
 	var sold: Dictionary = s.get("sold", {})
 	if not sold.is_empty():
 		shop.add_child(UI.label("팔린 메뉴", 18, UI.CHESTNUT))

@@ -125,6 +125,7 @@ func _ready() -> void:
 	for k in RESIDENTS:
 		_spawn_resident(k)
 	GameState.customer_spawned.connect(_on_customer)
+	GameState.customer_left.connect(_on_customer_left)
 	Audio.play_bgm("bgm_village")
 
 
@@ -160,6 +161,21 @@ func _on_customer(kind: String) -> void:
 	a.position = start
 	world.add_child(a)
 	await a.walk_path(walk.find_path(start, BAKERY_DOOR))
+	if is_instance_valid(a):
+		var tw := a.create_tween()
+		tw.tween_property(a, "modulate:a", 0.0, 0.3)
+		tw.tween_callback(a.queue_free)
+
+
+## 가게에서 나온 손님이 마을 밖으로 걸어가요.
+func _on_customer_left(kind: String) -> void:
+	var a := Animal.new()
+	a.setup(kind, ANIMAL_SCALE * (1.1 if kind == "chick" else 1.0))
+	a.speed = 55.0
+	a.position = BAKERY_DOOR
+	world.add_child(a)
+	var to: Vector2 = ENTRANCES.pick_random()
+	await a.walk_path(walk.find_path(BAKERY_DOOR, to))
 	if is_instance_valid(a):
 		var tw := a.create_tween()
 		tw.tween_property(a, "modulate:a", 0.0, 0.3)

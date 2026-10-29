@@ -347,6 +347,12 @@ func _table_hit(a: Dictionary, p: Vector2) -> bool:
 
 
 func _take_order(t) -> void:
+	if t.quest_id != "":
+		var q := GameState.quest(t.quest_id)
+		main.hud.open_quest(q, func():
+			GameState.active_quest = q.id
+			t.take_order(), func(): t.decline())
+		return
 	t.take_order()
 
 
@@ -412,6 +418,15 @@ func _spawn_tick(delta: float) -> void:
 	t.reserve()
 	var kind: String = Sprites.ANIMALS.pick_random()
 	var order: String = GameState.menu_now().pick_random()
+	# 가끔 부탁 손님이 와요 (하루 한 번, 오전 10시 이후)
+	var qid := ""
+	var q := GameState.next_quest()
+	if not q.is_empty() and not GameState.quest_seen_today and GameState.active_quest == "" \
+			and GameState.minutes > GameState.DAY_START + 60 and randf() < 0.5:
+		GameState.quest_seen_today = true
+		qid = q.id
+		kind = q.kind
+		order = q.dish
 	GameState.customer_spawned.emit(kind)
 	var a := _new_customer(kind)
 	a.position = _door_for(t)
@@ -422,7 +437,7 @@ func _spawn_tick(delta: float) -> void:
 	await a.walk_path(find_path(a.position, t.stand) + [t.position + Vector2(0, 6)])
 	a.queue_free()
 	if t.state == "coming":
-		t.seat(kind, order)
+		t.seat(kind, order, qid)
 
 
 func _on_left(t, kind: String, _happy: bool) -> void:
@@ -431,7 +446,9 @@ func _on_left(t, kind: String, _happy: bool) -> void:
 	a.position = t.position + Vector2(0, 6)
 	world.add_child(a)
 	await a.walk_path([t.stand] + find_path(t.stand, _door_for(t)))
-	Audio.sfx("door")
+	GameState.customer_left.emit(kind)
+	if active:
+		Audio.sfx("door")
 	var tw := a.create_tween()
 	tw.tween_property(a, "modulate:a", 0.0, 0.3)
 	tw.tween_callback(a.queue_free)
@@ -480,7 +497,7 @@ func find_serve_job():
 
 func find_order_job():
 	for t in tables:
-		if t.state == "ordering" and not t.busy:
+		if t.state == "ordering" and not t.busy and t.quest_id == "":  # 부탁 손님은 주인공이 직접 들어요
 			return t
 	return null
 
