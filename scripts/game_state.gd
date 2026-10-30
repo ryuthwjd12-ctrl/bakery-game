@@ -108,7 +108,7 @@ const LEVEL_REP := [0, 8, 20, 40, 70]
 const STORAGE := {
 	"cabinet": {"name": "그릇장", "items": ["bowl", "mug", "cake_plate", "cake_tin", "star_cutter", "rolling_pin", "piping_bag"]},
 	"fridge": {"name": "냉장고", "items": ["butter", "egg", "milk", "cream", "apple"]},
-	"freezer": {"name": "냉동고", "items": ["raspberry"]},
+	"freezer": {"name": "냉동고", "items": ["raspberry", "strawberry"]},
 	"pantry": {"name": "찬장", "items": ["flour", "sugar", "chocolate", "walnut", "acorn", "matcha", "honey_jar"]},
 }
 
@@ -148,9 +148,11 @@ var quests_done: Array = []
 var boss_done := false
 var active_quest := ""  # 받은 부탁(그날만)
 var quest_seen_today := false
+var dishes := 0  # 그릇 가게에서 산 예쁜 그릇 세트 수(팁이 늘어요)
+var visited: Array = []  # 가 본 다른 마을(그 마을 동물이 손님으로 놀러 와요)
 
 const SAVE_KEYS := ["hero", "gold", "day", "inv", "stock", "known", "oven", "rep", "has_waiter", "tutorial",
-	"annex_tables", "decor", "hp", "mp", "weapons", "weapon", "quests_done", "boss_done"]
+	"annex_tables", "decor", "hp", "mp", "weapons", "weapon", "quests_done", "boss_done", "visited", "dishes"]
 ## 무기: 근접(melee)은 앞으로 휘두르고, 마법(magic)은 반짝이를 쏘며 마나를 써요. 비쌀수록 세요.
 const WEAPONS := {
 	"spatula": {"name": "나무 뒤집개", "type": "melee", "power": 8, "price": 0, "icon": "items/spatula"},
@@ -161,6 +163,9 @@ const WEAPONS := {
 	"honey_staff": {"name": "꿀단지 지팡이", "type": "magic", "power": 30, "mp": 6, "price": 1200, "icon": "items/honey_jar"},
 	"walnut_hammer": {"name": "호두 깨기 망치", "type": "melee", "power": 36, "price": 1500, "icon": "items/walnut"},
 }
+## 한 마을에는 한 동물만 살아요.
+const VILLAGE_ANIMAL := {"village": "squirrel", "petal_hill": "rabbit", "seashell_beach": "cat",
+	"apple_orchard": "bear", "snowflake_village": "deer"}
 const ANNEX_MAX := 4
 const DECOR_MAX := 2
 
@@ -412,6 +417,22 @@ func mark_tutorial(step: String) -> void:
 		tutorial_changed.emit()
 
 
+## 빵집 손님: 대부분 도토리 마을 다람쥐, 가 본 마을이 늘수록 그 마을 동물이 놀러 와요.
+func customer_kind() -> String:
+	var guests: Array = []
+	for v in visited:
+		if VILLAGE_ANIMAL.has(v):
+			guests.append(VILLAGE_ANIMAL[v])
+	if guests.is_empty() or randf() < 0.6:
+		return "squirrel"
+	return guests.pick_random()
+
+
+func visit(area_id: String) -> void:
+	if VILLAGE_ANIMAL.has(area_id) and not visited.has(area_id):
+		visited.append(area_id)
+
+
 func tutorial_done() -> bool:
 	return tutorial.size() >= 4
 
@@ -454,6 +475,8 @@ func load_game() -> bool:
 	weapon = data.get("weapon", "spatula")
 	quests_done = data.get("quests_done", [])
 	boss_done = data.get("boss_done", false)
+	visited = data.get("visited", [])
+	dishes = int(data.get("dishes", 0))
 	_reset_day()
 	changed.emit()
 	return true

@@ -226,7 +226,113 @@ def sfx():
     save('pick', x)
 
 
+def forest_theme():
+    """숲 전투 음악: 빠른 4/4, D단조 느낌이지만 귀엽게. 기타 리듬 + 통통 북 + 피리."""
+    bpm = 132
+    beat = 60 / bpm
+    CH = {'Dm': ['D', 'F', 'A'], 'Bb': ['Bb', 'D', 'F'], 'C': ['C', 'E', 'G'], 'A': ['A', 'C#', 'E'],
+          'F': ['F', 'A', 'C'], 'Gm': ['G', 'Bb', 'D']}
+    prog = ['Dm', 'Bb', 'C', 'A', 'Dm', 'Bb', 'C', 'Dm', 'F', 'C', 'Gm', 'A', 'Dm', 'Bb', 'A', 'Dm']
+    mel = [
+        [('D5', 0.5), ('F5', 0.5), ('A5', 1), ('G5', 0.5), ('F5', 0.5), ('E5', 1)],
+        [('F5', 1), ('D5', 1), ('Bb4', 2)],
+        [('C5', 0.5), ('E5', 0.5), ('G5', 1), ('F5', 0.5), ('E5', 0.5), ('C5', 1)],
+        [('E5', 1.5), ('C#5', 0.5), ('A4', 2)],
+        [('D5', 0.5), ('F5', 0.5), ('A5', 1), ('Bb5', 0.5), ('A5', 0.5), ('G5', 1)],
+        [('F5', 1), ('G5', 0.5), ('F5', 0.5), ('D5', 2)],
+        [('E5', 0.5), ('F5', 0.5), ('G5', 1), ('E5', 1), ('C5', 1)],
+        [('D5', 3), ('A4', 1)],
+        [('A5', 1), ('C6', 1), ('A5', 1), ('F5', 1)],
+        [('G5', 1), ('E5', 1), ('C5', 2)],
+        [('Bb5', 1), ('A5', 0.5), ('G5', 0.5), ('D5', 2)],
+        [('E5', 1), ('C#5', 1), ('E5', 1), ('A5', 1)],
+        [('F5', 0.5), ('E5', 0.5), ('D5', 1), ('A5', 2)],
+        [('Bb5', 1), ('A5', 1), ('F5', 2)],
+        [('E5', 1), ('F5', 0.5), ('E5', 0.5), ('C#5', 2)],
+        [('D5', 4)],
+    ]
+    total = len(prog) * 4 * beat
+    tr = np.zeros(int((total + 3) * SR))
+    for i, ch in enumerate(prog):
+        t0 = i * 4 * beat
+        tones = CH[ch]
+        for b in range(4):
+            place(tr, pluck(hz(tones[0] + '2'), 0.5, 0.22), t0 + b * beat)
+            place(tr, pluck(hz(tones[(b + 1) % 3] + '3'), 0.35, 0.09), t0 + (b + 0.5) * beat)
+            # 통통 북(낮은 소리) + 찰칵(높은 잡음)
+            n = int(0.18 * SR)
+            tt = np.arange(n) / SR
+            kick = 0.5 * np.sin(2 * np.pi * np.cumsum(120 * np.exp(-tt * 20) + 50) / SR) * np.exp(-tt * 18)
+            place(tr, kick, t0 + b * beat)
+            if b % 2 == 1:
+                m = int(0.08 * SR)
+                place(tr, 0.12 * lfilter([1, -1], [1], rng.normal(0, 1, m)) * np.exp(-np.arange(m) / SR * 50), t0 + b * beat)
+        t = t0
+        for nt, b in mel[i]:
+            place(tr, flute(hz(nt), b * beat * 0.9, 0.15), t)
+            t += b * beat
+    save('bgm_forest', loop_tail(reverb(tr, 0.18), total), True)
+
+
+def sfx2():
+    """전투·채집·버튼 효과음"""
+    # 휘두르기: 위로 쓸려 올라가는 바람 소리
+    n = int(0.22 * SR)
+    t = np.arange(n) / SR
+    nz = rng.normal(0, 1, n)
+    out = np.zeros(n)
+    y = 0.0
+    for i in range(n):
+        a = 0.55 + 0.4 * (i / n)  # 점점 밝아지게
+        y = a * y + (1 - a) * nz[i]
+        out[i] = nz[i] - y
+    save('swing', 0.5 * out * np.sin(np.pi * t / t[-1]) ** 1.5)
+    # 맞음: 퍽 + 통 튀는 소리
+    n = int(0.25 * SR)
+    t = np.arange(n) / SR
+    thud = np.sin(2 * np.pi * np.cumsum(220 * np.exp(-t * 25) + 90) / SR) * np.exp(-t * 22)
+    smack = lfilter([1], [1, -0.5], rng.normal(0, 1, n)) * np.exp(-t * 60)
+    boing = 0.4 * np.sin(2 * np.pi * np.cumsum(600 + 300 * np.sin(t * 40)) / SR) * np.exp(-t * 14)
+    save('hit', 0.6 * thud + 0.35 * smack + boing)
+    # 몬스터 쓰러짐: 뾰로롱 내려가는 소리 + 반짝
+    x = np.zeros(int(0.9 * SR))
+    n = int(0.4 * SR)
+    t = np.arange(n) / SR
+    place(x, 0.45 * np.sin(2 * np.pi * np.cumsum(900 * np.exp(-t * 4) + 200) / SR) * np.exp(-t * 6), 0)
+    for k, nt in enumerate(['E6', 'G6', 'C7']):
+        place(x, tone(hz(nt), 0.4, 0.2, 0.12, (1, 2.76)), 0.28 + k * 0.06)
+    save('monster_down', x)
+    # 주인공 다침: 짧게 낮아지는 두 음
+    x = np.zeros(int(0.35 * SR))
+    place(x, tone(hz('A4'), 0.12, 0.4, 0.05, (1, 2, 3)), 0)
+    place(x, tone(hz('E4'), 0.2, 0.4, 0.08, (1, 2, 3)), 0.09)
+    save('hurt', x)
+    # 마법: 반짝이며 날아가는 소리
+    x = np.zeros(int(0.5 * SR))
+    for k in range(6):
+        place(x, tone(hz('C6') * (1.12 ** k), 0.2, 0.18, 0.06, (1, 2.4)), k * 0.035)
+    save('magic', x)
+    # 채집: 바스락 + 톡
+    x = np.zeros(int(0.45 * SR))
+    m = int(0.2 * SR)
+    rust = lfilter([1, -1], [1, -0.3], rng.normal(0, 1, m)) * np.sin(np.linspace(0, np.pi, m)) * 0.25
+    place(x, rust, 0)
+    place(x, tone(hz('A5'), 0.15, 0.3, 0.05, (1, 2)), 0.16)
+    place(x, tone(hz('E6'), 0.2, 0.3, 0.07, (1, 2)), 0.22)
+    save('gather', x)
+    # 버튼: 부드러운 톡
+    n = int(0.07 * SR)
+    t = np.arange(n) / SR
+    save('button', 0.5 * np.sin(2 * np.pi * np.cumsum(1300 * np.exp(-t * 30) + 500) / SR) * np.exp(-t * 60))
+
+
 if __name__ == '__main__':
-    sfx()
+    import sys
+    if 'all' in sys.argv:
+        shop_theme()
+        village_theme()
+        sfx()
+    forest_theme()
+    sfx2()
     shop_theme()
     village_theme()

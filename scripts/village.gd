@@ -5,9 +5,12 @@ extends Node2D
 const Player := preload("res://scripts/player.gd")
 const Animal := preload("res://scripts/animal.gd")
 
-const ZOOM := 2.0
-const HERO_SCALE := 0.24  # 가게 문 높이(약 50)에 맞춘 크기
-const ANIMAL_SCALE := 0.28
+## 마을 그림을 MAP_SCALE배로 키워 깔아요. 좌표·걷기 지도는 원래 그림(1408x768) 기준 그대로 쓰고,
+## 주인공·주민은 작게 그려서 건물이 상대적으로 크게 보이게 해요.
+const MAP_SCALE := 2.0
+const ZOOM := 1.67
+const HERO_SCALE := 0.15
+const ANIMAL_SCALE := 0.17
 const AREA := [Vector2(0, 0), Vector2(1408, 0), Vector2(1408, 768), Vector2(0, 768)]
 ## 건물·나무·덤불·화단 자리. 지붕 위나 건물 뒤로는 못 가요. 좌표는 마을 그림(1408x768) 기준.
 const BLOCKS := [
@@ -71,7 +74,8 @@ const BUSHES := {
 }
 ## 손님이 마을에 들어오는 길 끝(위, 왼쪽, 오른쪽, 아래)
 const ENTRANCES := [Vector2(712, 8), Vector2(10, 375), Vector2(1398, 362), Vector2(715, 760)]
-const RESIDENTS := ["cat", "deer", "bear", "squirrel", "chick"]
+## 도토리 마을은 다람쥐 마을이에요. 털색을 조금씩 달리해요.
+const RESIDENTS := [Color(1, 1, 1), Color(1.08, 0.98, 0.9), Color(0.92, 0.9, 0.95), Color(1.05, 1.02, 1), Color(0.97, 0.93, 0.86)]
 const GREETINGS := ["안녕! 오늘도 빵 냄새가 좋다.", "도토리가 잔뜩 열렸어.", "산딸기는 아래쪽 덤불에 많아!",
 	"이따가 가게에 들를게.", "날씨가 참 포근하네.", "새 메뉴는 언제 나와?"]
 
@@ -84,20 +88,33 @@ var near = null
 var residents: Array = []
 var puppy: AnimatedSprite2D
 var door_armed := false
-var walk := WalkMap.new(AREA, BLOCKS, 10)
+var walk := WalkMap.new(AREA, BLOCKS, 8)
+var map := Node2D.new()  # 그림과 사람들을 함께 키우는 판
+var overlays := {}  # 딴 덤불 덮개
+var ground := {}  # 땅에 떨어진 재료
+## 땅에 떨어진 재료: 도토리 나무 밑, 그루터기 옆, 화단 옆
+const GROUND := [["acorn1", "acorn", Vector2(205, 345)], ["acorn2", "acorn", Vector2(262, 352)],
+	["acorn3", "acorn", Vector2(95, 268)], ["walnut1", "walnut", Vector2(172, 655)],
+	["acorn4", "acorn", Vector2(1290, 380)], ["walnut2", "walnut", Vector2(985, 560)]]
 
 
 func _ready() -> void:
+	map.scale = Vector2(MAP_SCALE, MAP_SCALE)
+	add_child(map)
 	var bg := Sprite2D.new()
 	bg.texture = Sprites.tex("backgrounds/acorn_village")
 	bg.centered = false
-	add_child(bg)
+	map.add_child(bg)
+	var over_layer := Node2D.new()
+	map.add_child(over_layer)
+	overlays = Gather.add_overlays(over_layer, "backgrounds/acorn_village", "")
 	world.y_sort_enabled = true
-	add_child(world)
+	map.add_child(world)
+	ground = Gather.add_ground_items(world, GROUND, "v_", 0.11)
 
 	player = Player.new()
 	player.setup(GameState.hero, HERO_SCALE)
-	player.speed = 110.0
+	player.speed = 70.0
 	player.can_walk = can_walk
 	player.position = BAKERY_DOOR + Vector2(0, 36)
 	var edge := {"forest_north": Vector2(712, 30), "forest_east": Vector2(1370, 362),
@@ -110,35 +127,38 @@ func _ready() -> void:
 	cam.zoom = Vector2(ZOOM, ZOOM)
 	cam.limit_left = 0
 	cam.limit_top = 0
-	cam.limit_right = 1408
-	cam.limit_bottom = 768
+	cam.limit_right = int(1408 * MAP_SCALE)
+	cam.limit_bottom = int(768 * MAP_SCALE)
 	cam.position_smoothing_enabled = true
 	cam.position_smoothing_speed = 6.0
-	player.add_child(cam)
+	add_child(cam)
+	cam.position = map.transform * player.position
 	cam.make_current()
+	cam.reset_smoothing.call_deferred()
 
 	if not GameState.has_waiter:
 		puppy = AnimatedSprite2D.new()
 		puppy.sprite_frames = Sprites.frames_for("puppy", ["front", "back", "right", "tray", "sweep"])
 		puppy.animation = "front"
 		puppy.offset = Vector2(0, -61)
-		puppy.scale = Vector2(0.42, 0.42)
+		puppy.scale = Vector2(0.14, 0.14)
 		var holder := Node2D.new()
 		holder.position = Vector2(770, 520)
 		holder.add_child(puppy)
 		world.add_child(holder)
 
-	for k in RESIDENTS:
-		_spawn_resident(k)
+	for tint in RESIDENTS:
+		_spawn_resident("squirrel", tint)
 	GameState.customer_spawned.connect(_on_customer)
 	GameState.customer_left.connect(_on_customer_left)
 	Audio.play_bgm("bgm_village")
 
 
-func _spawn_resident(kind: String) -> void:
+func _spawn_resident(kind: String, tint := Color.WHITE) -> void:
 	var a := Animal.new()
 	a.setup(kind, ANIMAL_SCALE * (1.1 if kind == "chick" else 1.0))
-	a.speed = 45.0
+	a.modulate = tint
+	a.speed = 28.0
 	a.position = walk.random_point()
 	world.add_child(a)
 	residents.append(a)
@@ -162,7 +182,7 @@ func _wander(a) -> void:
 func _on_customer(kind: String) -> void:
 	var a := Animal.new()
 	a.setup(kind, ANIMAL_SCALE * (1.1 if kind == "chick" else 1.0))
-	a.speed = 55.0
+	a.speed = 34.0
 	var start: Vector2 = ENTRANCES.pick_random()
 	a.position = start
 	world.add_child(a)
@@ -177,7 +197,7 @@ func _on_customer(kind: String) -> void:
 func _on_customer_left(kind: String) -> void:
 	var a := Animal.new()
 	a.setup(kind, ANIMAL_SCALE * (1.1 if kind == "chick" else 1.0))
-	a.speed = 55.0
+	a.speed = 34.0
 	a.position = BAKERY_DOOR
 	world.add_child(a)
 	var to: Vector2 = ENTRANCES.pick_random()
@@ -194,14 +214,18 @@ func can_walk(p: Vector2) -> bool:
 
 func _actions() -> Array:
 	var out: Array = [
-		{"pos": Vector2(560, 240), "r": 40.0, "text": "재료 가게", "do": func(): main.hud.open_trade("도토리 재료 가게", ["flour", "sugar", "butter", "egg", "milk", "chocolate", "cream"])},
-		{"pos": Vector2(930, 262), "r": 36.0, "text": "특산물 가게", "do": func(): main.hud.open_trade("숲속 특산물 가게", ["walnut", "acorn", "honey_jar", "matcha", "apple"])},
+		{"pos": Vector2(560, 240), "r": 40.0, "text": "재료 가게", "do": func(): main.hud.open_trade("도토리 재료 가게", ["flour", "sugar", "butter", "egg", "milk", "chocolate", "cream", "walnut", "acorn", "honey_jar", "matcha", "apple"])},
+		{"pos": Vector2(930, 262), "r": 36.0, "text": "그릇 가게", "do": _dish_shop},
 		{"pos": Vector2(1065, 335), "r": 36.0, "text": "가구점", "do": _furniture_shop},
 		{"pos": Vector2(310, 615), "r": 36.0, "text": "무기 상점", "do": func(): main.hud.open_weapon_shop()},
-		{"pos": Vector2(1110, 610), "r": 36.0, "text": "옷 가게", "do": _soon},
+		{"pos": Vector2(1110, 610), "r": 36.0, "text": "인테리어점", "do": _interior_shop},
 	]
 	for id in BUSHES:
-		out.append({"pos": BUSHES[id], "r": 40.0, "text": "산딸기 따기", "do": _pick.bind(id)})
+		if not GameState.picked_today.has(id):
+			out.append({"pos": BUSHES[id], "r": 40.0, "text": "산딸기 따기", "do": _pick.bind(id)})
+	for gid in ground:
+		if is_instance_valid(ground[gid]):
+			out.append({"pos": ground[gid].position, "r": 18.0, "text": "줍기", "do": _pick_ground.bind(gid)})
 	if puppy:
 		out.append({"pos": Vector2(770, 540), "r": 30.0, "text": "강아지와 이야기", "do": _talk_puppy})
 	for a in residents:
@@ -210,6 +234,7 @@ func _actions() -> Array:
 
 
 func _process(_delta: float) -> void:
+	cam.position = map.transform * player.position
 	# 마을 가장자리로 나가면 숲길이에요
 	var pp: Vector2 = player.position
 	var side := ""
@@ -247,7 +272,11 @@ func _process(_delta: float) -> void:
 
 
 func _to_screen(p: Vector2) -> Vector2:
-	return get_viewport().get_canvas_transform() * p
+	return get_viewport().get_canvas_transform() * (map.transform * p)
+
+
+func _to_map(screen: Vector2) -> Vector2:
+	return map.transform.affine_inverse() * (get_viewport().get_canvas_transform().affine_inverse() * screen)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -258,7 +287,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			near.do.call()
 			get_viewport().set_input_as_handled()
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		var to: Vector2 = get_viewport().get_canvas_transform().affine_inverse() * event.position
+		var to: Vector2 = _to_map(event.position)
 		# 빵집을 누르면 문으로 걸어가요
 		if Geometry2D.is_point_in_polygon(to, PackedVector2Array(BLOCKS[14])):
 			to = BAKERY_DOOR
@@ -276,6 +305,25 @@ func _furniture_shop() -> void:
 				GameState.annex_tables += 1
 				hall.add_annex_set()
 				GameState.toast.emit("별관에 탁자를 놓았어요! 가게 안쪽 오른쪽 문으로 가 봐요.")},
+	]
+	if GameState.annex_tables > 0:
+		var back := (300 + (GameState.annex_tables - 1) * 100)
+		entries.append({"icon": Sprites.tex("furniture/table_set"), "name": "탁자 세트 되팔기", "price": 0,
+			"note": "별관의 마지막 탁자를 %d골드에 팔아요. (산 값의 30%%)" % main.hud.sell_price(back),
+			"block": func(): return "",
+			"buy": func():
+				if hall.remove_annex_set():
+					GameState.earn(main.hud.sell_price(back))
+					GameState.toast.emit("탁자 세트를 팔았어요.")
+				else:
+					GameState.toast.emit("손님이 앉아 있거나 지저분한 탁자는 팔 수 없어요.")})
+	main.hud.open_store("다람쥐 가구점", "산 가구는 가게 별관에 바로 놓여요. 되팔면 산 값의 30%를 받아요.", entries)
+
+
+## 인테리어점: 화분처럼 가게를 꾸미는 물건(벽지·바닥은 새 그림이 오면 더해요).
+func _interior_shop() -> void:
+	var hall = main.hall
+	var entries := [
 		{"icon": Sprites.tex("furniture/plant_big"), "name": "큰 화분", "price": 150,
 			"note": "가게가 예뻐져서 손님이 더 자주 오고 팁이 늘어요.",
 			"block": func(): return "이미 놓았어요" if GameState.decor >= 1 else "",
@@ -289,18 +337,25 @@ func _furniture_shop() -> void:
 				GameState.decor = 2
 				hall.add_decor()},
 	]
-	if GameState.annex_tables > 0:
-		var back := (300 + (GameState.annex_tables - 1) * 100)
-		entries.append({"icon": Sprites.tex("furniture/table_set"), "name": "탁자 세트 되팔기", "price": 0,
-			"note": "별관의 마지막 탁자를 %d골드에 팔아요. (산 값의 30%%)" % main.hud.sell_price(back),
-			"block": func(): return "",
+	main.hud.open_store("다람쥐 인테리어점", "가게가 예뻐지면 손님이 더 자주 오고 팁이 늘어요.", entries)
+
+
+## 그릇 가게: 예쁜 그릇 세트를 사면 음식이 더 맛있어 보여서 팁이 늘어요.
+const DISH_SETS := [["꽃무늬 접시 세트", 180, "items/heart_cookie"], ["도토리 찻잔 세트", 320, "items/acorn_cookie"],
+	["금테 디저트 접시", 520, "items/macaron"]]
+
+
+func _dish_shop() -> void:
+	var entries := []
+	for i in DISH_SETS.size():
+		var d: Array = DISH_SETS[i]
+		entries.append({"icon": Sprites.tex(d[2]), "name": d[0], "price": d[1],
+			"note": "손님 팁이 3골드씩 늘어요. (%d/%d)" % [GameState.dishes, DISH_SETS.size()],
+			"block": func(): return "이미 샀어요" if GameState.dishes > i else ("앞의 그릇 먼저" if GameState.dishes < i else ""),
 			"buy": func():
-				if hall.remove_annex_set():
-					GameState.earn(main.hud.sell_price(back))
-					GameState.toast.emit("탁자 세트를 팔았어요.")
-				else:
-					GameState.toast.emit("손님이 앉아 있거나 지저분한 탁자는 팔 수 없어요.")})
-	main.hud.open_store("숲속 가구점", "산 가구는 가게 별관에 바로 놓여요. 되팔면 산 값의 30%를 받아요.", entries)
+				GameState.dishes = i + 1
+				GameState.toast.emit("%s를 들였어요! 손님 팁이 늘어요." % d[0])})
+	main.hud.open_store("다람쥐 그릇 가게", "예쁜 그릇에 담으면 음식이 더 맛있어 보여요.", entries)
 
 
 func _soon() -> void:
@@ -314,17 +369,29 @@ func _pick(id: String) -> void:
 	var n := randi_range(2, 3)
 	GameState.picked_today.append(id)
 	GameState.add_item("raspberry", n)
-	Audio.sfx("pick")
+	player.work(0.5)
+	Gather.pick_fx(world, overlays.get(id), "raspberry", n, player, 0.12)
 	GameState.toast.emit("산딸기 %d개를 땄어요! 냉동고에 넣어 둘게요." % n)
 
 
+func _pick_ground(gid: String) -> void:
+	var s: Sprite2D = ground[gid]
+	ground.erase(gid)
+	GameState.picked_today.append("v_" + gid)
+	var item: String = s.get_meta("item")
+	GameState.add_item(item, 1)
+	Gather.pick_ground(s, player)
+	GameState.toast.emit("%s 1개를 주웠어요." % GameState.item_name(item))
+
+
 func _say_over(node: Node2D, text: String, height := 70.0) -> void:
-	var l := UI.label(text, 11)
-	l.add_theme_stylebox_override("normal", UI.box(Color.WHITE, UI.OUTLINE, 8, 1))
+	var l := UI.label(text, 18)
+	l.add_theme_stylebox_override("normal", UI.box(Color.WHITE, UI.OUTLINE, 10, 2))
 	l.z_index = 90
+	l.scale = Vector2.ONE / (MAP_SCALE * ZOOM) * 1.2  # 지도를 키운 만큼 줄여서 글자 크기를 맞춰요
 	node.add_child(l)
 	l.reset_size()
-	l.position = Vector2(-l.size.x / 2, -height - l.size.y)
+	l.position = Vector2(-l.size.x * l.scale.x / 2, -height - l.size.y * l.scale.y)
 	var tw := l.create_tween()
 	tw.tween_interval(2.2)
 	tw.tween_property(l, "modulate:a", 0.0, 0.4)
@@ -332,13 +399,13 @@ func _say_over(node: Node2D, text: String, height := 70.0) -> void:
 
 
 func _greet(a) -> void:
-	_say_over(a, GREETINGS.pick_random(), 40.0)
+	_say_over(a, GREETINGS.pick_random(), 26.0)
 	Audio.sfx("order")
 
 
 func _talk_puppy() -> void:
 	if GameState.level() < 2:
-		_say_over(puppy.get_parent(), "가게가 조금 더 유명해지면(레벨 2) 같이 일하고 싶어요!", 40.0)
+		_say_over(puppy.get_parent(), "가게가 조금 더 유명해지면(레벨 2) 같이 일하고 싶어요!", 24.0)
 		return
 	main.hud.confirm("알바생 강아지를 고용할까요?\n주문 받기, 음식 내주기, 청소를 도와줘요. (%d골드)" % GameState.WAITER_COST, func():
 		if GameState.gold < GameState.WAITER_COST:

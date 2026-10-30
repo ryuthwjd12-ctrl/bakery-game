@@ -25,6 +25,18 @@ var near = null
 var mp_regen := 0.0
 var boss = null
 var snow_cd := 3.0
+var overlays := {}
+var ground := {}
+## 채집할 수 있는 곳: 지도 그림 → {덮개 id: [재료, 개수 최소, 최대, 서는 곳]}
+const GATHER := {
+	"maps/forest_path": {"strawberry_patch": ["strawberry", 2, 3, Vector2(375, 560)],
+		"berry_bush": ["raspberry", 1, 2, Vector2(585, 605)], "berry_bottom": ["raspberry", 2, 3, Vector2(515, 735)]},
+	"maps/apple_orchard": {"apple_tree_a": ["apple", 1, 2, Vector2(175, 345)],
+		"apple_tree_b": ["apple", 1, 2, Vector2(355, 545)], "apple_tree_c": ["apple", 1, 2, Vector2(190, 945)]},
+}
+## 숲 바닥에 떨어진 재료
+const GROUND := [["g1", "walnut", Vector2(700, 520)], ["g2", "acorn", Vector2(300, 600)],
+	["g3", "acorn", Vector2(1120, 250)], ["g4", "walnut", Vector2(860, 610)]]
 
 
 func _ready() -> void:
@@ -34,8 +46,14 @@ func _ready() -> void:
 	bg.centered = false
 	bg.modulate = area.get("tint", Color.WHITE)
 	add_child(bg)
+	var over_layer := Node2D.new()
+	over_layer.modulate = area.get("tint", Color.WHITE)
+	add_child(over_layer)
+	overlays = Gather.add_overlays(over_layer, area.bg, area_id + "_")
 	world.y_sort_enabled = true
 	add_child(world)
+	if area.has("monsters"):
+		ground = Gather.add_ground_items(world, GROUND, area_id + "_", 0.26)
 	walk = WalkMap.new(area.area, area.blocks, 12, Vector2i(area.size))
 
 	player = Player.new()
@@ -59,11 +77,15 @@ func _ready() -> void:
 		npc.setup(area.shop.npc, area.hero * 1.3)
 		npc.position = area.shop.pos
 		world.add_child(npc)
+		# 한 마을에는 한 동물만 살아요: 가게 주인과 같은 동물 주민이 돌아다녀요.
+		GameState.visit(area_id)
+		for i in 3:
+			_spawn_resident(area.shop.npc)
 	for e in area.exits:
 		_signpost(e)
 	for i in area.get("count", 0):
 		_spawn_monster()
-	Audio.play_bgm("bgm_village")
+	Audio.play_bgm("bgm_forest" if area.has("monsters") or area.has("boss") else "bgm_village")
 	main.hud.show_toast(area.name + (" — 몬스터 조심!" if area.has("monsters") else ""))
 
 
@@ -89,6 +111,29 @@ func _signpost(e: Dictionary) -> void:
 	var c: Vector2 = e.rect.get_center()
 	l.position = Vector2(clampf(c.x, 20, area.size.x - 110), clampf(c.y, 20, area.size.y - 40)) - Vector2(30, 40)
 	add_child(l)
+
+
+func _spawn_resident(kind: String) -> void:
+	var a := Animal.new()
+	a.setup(kind, area.hero * 1.2)
+	a.speed = 40.0
+	a.modulate = Color(randf_range(0.93, 1.05), randf_range(0.93, 1.03), randf_range(0.92, 1.0))
+	a.position = walk.random_point()
+	world.add_child(a)
+	_wander(a)
+
+
+func _wander(a) -> void:
+	while is_instance_valid(a) and a.is_inside_tree():
+		var to := walk.random_point()
+		if to.distance_to(a.position) > 500:
+			await get_tree().process_frame
+			continue
+		await a.walk_path(walk.find_path(a.position, to))
+		if not is_instance_valid(a):
+			return
+		a.idle()
+		await get_tree().create_timer(randf_range(1.5, 4.0)).timeout
 
 
 func can_walk(p: Vector2) -> bool:
@@ -128,7 +173,6 @@ func _on_monster_died(m) -> void:
 		_fly_icon(Sprites.item(d.drop), m.position)
 	GameState.changed.emit()
 	float_text(m.position + Vector2(0, -40), msg, Color("#B8741A"))
-	Audio.sfx("coin")
 	respawn.append(12.0)
 
 
@@ -164,7 +208,8 @@ func hurt_player(dmg: int, dir: Vector2) -> void:
 	invuln = 1.0
 	GameState.hp = maxi(0, GameState.hp - dmg)
 	GameState.changed.emit()
-	Audio.sfx("fail")
+	Audio.sfx("hurt")
+	UI.pop(player.sprite, 0.18)
 	float_text(player.position + Vector2(0, -90), "-%d" % dmg, Color("#E0675A"))
 	var np: Vector2 = player.position + dir * 26
 	if can_walk(np):
@@ -217,14 +262,46 @@ func _process(delta: float) -> void:
 		if e.rect.has_point(player.position):
 			_leave(e.to)
 			return
-	near = null
-	if area.has("shop") and player.position.distance_to(area.shop.pos) < 60:
-		near = area.shop
+	near = _find_near()
 	player.active = not main.hud.is_panel_open()
 	if near and player.active:
-		main.hud.set_prompt("E  " + near.name, get_viewport().get_canvas_transform() * (player.position + Vector2(0, 10)))
+		main.hud.set_prompt("E  " + near.text, get_viewport().get_canvas_transform() * (player.position + Vector2(0, 10)))
 	else:
 		main.hud.set_prompt("", Vector2.ZERO)
+
+
+func _find_near():
+	var p: Vector2 = player.position
+	if area.has("shop") and p.distance_to(area.shop.pos) < 60:
+		return {"text": area.shop.name, "do": func(): main.hud.open_trade(area.shop.name, area.shop.items)}
+	var spots: Dictionary = GATHER.get(area.bg, {})
+	for sid in spots:
+		if not GameState.picked_today.has(area_id + "_" + sid) and p.distance_to(spots[sid][3]) < 55:
+			return {"text": GameState.item_name(spots[sid][0]) + " 따기", "do": _gather.bind(sid)}
+	for gid in ground:
+		if is_instance_valid(ground[gid]) and p.distance_to(ground[gid].position) < 40:
+			return {"text": "줍기", "do": _pick_ground.bind(gid)}
+	return null
+
+
+func _gather(sid: String) -> void:
+	var g: Array = GATHER[area.bg][sid]
+	var n := randi_range(g[1], g[2])
+	GameState.picked_today.append(area_id + "_" + sid)
+	GameState.add_item(g[0], n)
+	player.work(0.5)
+	Gather.pick_fx(world, overlays.get(sid), g[0], n, player, 0.3)
+	main.hud.show_toast("%s %d개를 땄어요! 내일 다시 열려요." % [GameState.item_name(g[0]), n])
+
+
+func _pick_ground(gid: String) -> void:
+	var s: Sprite2D = ground[gid]
+	ground.erase(gid)
+	GameState.picked_today.append(area_id + "_" + gid)
+	var item: String = s.get_meta("item")
+	GameState.add_item(item, 1)
+	Gather.pick_ground(s, player)
+	main.hud.show_toast("%s 1개를 주웠어요." % GameState.item_name(item))
 
 
 func _dir4(v: Vector2) -> Vector2:
@@ -247,7 +324,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_E and near:
-			main.hud.open_trade(near.name, near.items)
+			near.do.call()
 			get_viewport().set_input_as_handled()
 		elif event.keycode == KEY_SPACE or event.keycode == KEY_J:
 			attack()
@@ -258,6 +335,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			facing = _dir4(to - player.position)
 			attack()
 		elif event.button_index == MOUSE_BUTTON_LEFT:
+			UI.ripple(self, to, 14.0)
 			player.walk_path(walk.find_path(player.position, to))
 
 
@@ -288,7 +366,7 @@ func attack() -> void:
 		player.sprite.flip_h = facing.x < 0
 		player.sprite.play(anim)
 	if w.type == "melee":
-		Audio.sfx("sweep", 1.4)
+		Audio.sfx("swing", randf_range(0.95, 1.1))
 		_swing_fx(w)
 		for m in monsters.duplicate():
 			var d: Vector2 = m.position - player.position
@@ -296,7 +374,7 @@ func attack() -> void:
 			if d.length() < reach and (d.normalized().dot(facing) > 0.1 or d.length() < 30):
 				m.hit(w.power, player.position)
 	else:
-		Audio.sfx("sparkle", 1.3)
+		Audio.sfx("magic", randf_range(0.95, 1.1))
 		_shoot(w)
 	await get_tree().create_timer(0.32).timeout
 	if is_instance_valid(player):

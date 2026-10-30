@@ -144,7 +144,7 @@ func _process(delta: float) -> void:
 			animal.position.y = -absf(sin(eat_left * 6.0)) * 3.0
 			if eat_left <= 0:
 				var price: int = GameState.ITEMS[order].price
-				var tip := (5 if GameState.cleanliness >= 80 else 0) + GameState.decor * 2
+				var tip := (5 if GameState.cleanliness >= 80 else 0) + GameState.decor * 2 + GameState.dishes * 3
 				if quest_id != "":
 					_finish_quest()
 				GameState.earn(price + tip)

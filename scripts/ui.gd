@@ -59,6 +59,55 @@ static func label(text: String, size := 22, color: Color = OUTLINE) -> Label:
 	return l
 
 
+## 눌린 느낌: 살짝 납작해졌다가 통 튀어 올라요. Node2D(scale)와 Control(pivot) 모두 돼요.
+static func pop(n: CanvasItem, amount := 0.12) -> void:
+	if not is_instance_valid(n):
+		return
+	if n is Control:
+		n.pivot_offset = n.size / 2
+	var base: Vector2 = n.get_meta("base_scale", n.scale)
+	n.set_meta("base_scale", base)
+	var tw := n.create_tween()
+	tw.tween_property(n, "scale", base * Vector2(1.0 + amount, 1.0 - amount), 0.06)
+	tw.tween_property(n, "scale", base * Vector2(1.0 - amount * 0.6, 1.0 + amount * 0.6), 0.08)
+	tw.tween_property(n, "scale", base, 0.1).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+## 화면에 생기는 모든 버튼에 누름 반응(줄었다 커지기)과 소리를 붙여요.
+static func install_button_juice(tree: SceneTree) -> void:
+	tree.node_added.connect(func(n):
+		if n is BaseButton and not n.has_meta("no_juice"):
+			n.button_down.connect(func():
+				if n is Control:
+					n.pivot_offset = n.size / 2
+				var t: Tween = n.create_tween()
+				t.tween_property(n, "scale", Vector2(0.92, 0.92), 0.05))
+			n.button_up.connect(func():
+				var t: Tween = n.create_tween()
+				t.tween_property(n, "scale", Vector2(1.06, 1.06), 0.06)
+				t.tween_property(n, "scale", Vector2.ONE, 0.08))
+			n.pressed.connect(func(): Audio.sfx("button")))
+
+
+## 땅을 눌렀을 때 퍼지는 동그라미
+static func ripple(parent: Node, at: Vector2, radius := 18.0) -> void:
+	var r := Node2D.new()
+	r.position = at
+	r.z_index = 5
+	var st := {"t": 0.0}
+	r.draw.connect(func():
+		var k: float = st.t
+		r.draw_set_transform(Vector2.ZERO, 0, Vector2(1, 0.5))
+		r.draw_arc(Vector2.ZERO, radius * (0.4 + k), 0, TAU, 28, Color(1, 1, 1, 0.9 * (1.0 - k)), 3.0)
+		r.draw_arc(Vector2.ZERO, radius * (0.2 + k * 0.6), 0, TAU, 20, Color(PINK, 0.8 * (1.0 - k)), 2.0))
+	parent.add_child(r)
+	var tw := r.create_tween()
+	tw.tween_method(func(v):
+		st.t = v
+		r.queue_redraw(), 0.0, 1.0, 0.45)
+	tw.tween_callback(r.queue_free)
+
+
 static func button(text: String, cb: Callable, size := 22) -> Button:
 	var b := Button.new()
 	b.text = text

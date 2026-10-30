@@ -50,7 +50,8 @@ func _process(delta: float) -> void:
 		return
 	_t += delta
 	hurt_t -= delta
-	sprite.modulate = Color(1, 0.55, 0.55) if hurt_t > 0.15 else Color.WHITE
+	# 맞은 직후 하얗게 번쩍 → 빨갛게 → 원래대로
+	sprite.modulate = Color(2.2, 2.2, 2.2) if hurt_t > 0.24 else (Color(1, 0.55, 0.55) if hurt_t > 0.1 else Color.WHITE)
 	# 통통 튀며 움직여요
 	sprite.position.y = -absf(sin(_t * (9.0 if not boss else 4.0))) * (4.0 if not boss else 6.0)
 	if knock.length() > 1.0:
@@ -104,11 +105,51 @@ func hit(dmg: int, from: Vector2) -> void:
 	knock = (position - from).normalized() * (60.0 if not boss else 15.0)
 	bar.queue_redraw()
 	field.float_text(position + Vector2(0, -70), "-%d" % dmg, Color("#E0675A"))
-	Audio.sfx("pop", 0.8 if boss else 1.2)
+	Audio.sfx("hit", randf_range(0.8, 0.9) if boss else randf_range(1.0, 1.2))
+	UI.pop(sprite, 0.22 if not boss else 0.1)
+	_hit_spark()
 	if hp <= 0:
 		dead = true
+		Audio.sfx("monster_down", 0.8 if boss else 1.0)
+		_burst()
 		died.emit(self)
 		var tw := create_tween()
-		tw.tween_property(self, "scale", Vector2(1.2, 0.3), 0.18)
+		tw.tween_property(self, "scale", Vector2(1.25, 0.25), 0.18)
 		tw.parallel().tween_property(self, "modulate:a", 0.0, 0.35)
 		tw.tween_callback(queue_free)
+
+
+## 맞은 자리에 작은 별 모양 번쩍임
+func _hit_spark() -> void:
+	var f := Node2D.new()
+	f.position = Vector2(randf_range(-8, 8), -front.get_height() * sprite.scale.y * 0.55)
+	f.z_index = 60
+	f.draw.connect(func():
+		for i in 8:
+			var a := i * PI / 4
+			var l := 16.0 if i % 2 == 0 else 9.0
+			f.draw_line(Vector2.ZERO, Vector2.from_angle(a) * l, Color(1, 1, 0.8), 3.0)
+		f.draw_circle(Vector2.ZERO, 5, Color.WHITE))
+	add_child(f)
+	var tw := f.create_tween()
+	tw.tween_property(f, "scale", Vector2(1.6, 1.6), 0.12)
+	tw.parallel().tween_property(f, "modulate:a", 0.0, 0.18)
+	tw.tween_callback(f.queue_free)
+
+
+## 쓰러질 때 별과 동그라미가 사방으로 튀어요
+func _burst() -> void:
+	var parent := get_parent()
+	for i in 10:
+		var d := Node2D.new()
+		d.position = position + Vector2(0, -20)
+		d.z_index = 60
+		var col: Color = [Color("#FFE08A"), Color("#F2A9B4"), Color.WHITE][i % 3]
+		var r := randf_range(3, 6)
+		d.draw.connect(func(): d.draw_circle(Vector2.ZERO, r, col))
+		parent.add_child(d)
+		var dir := Vector2.from_angle(randf() * TAU) * randf_range(30, 70)
+		var tw := d.create_tween()
+		tw.tween_property(d, "position", d.position + dir + Vector2(0, -20), 0.35).set_ease(Tween.EASE_OUT)
+		tw.parallel().tween_property(d, "modulate:a", 0.0, 0.45)
+		tw.tween_callback(d.queue_free)

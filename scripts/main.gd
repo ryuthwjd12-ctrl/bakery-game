@@ -16,6 +16,7 @@ var hud: CanvasLayer
 
 func _ready() -> void:
 	get_tree().root.theme = UI.make_theme()
+	UI.install_button_juice(get_tree())
 	RenderingServer.set_default_clear_color(UI.CREAM)
 	hud = Hud.new()
 	hud.main = self

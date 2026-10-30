@@ -207,6 +207,7 @@ func _open_storage(k: String) -> void:
 
 func _item_card(id: String) -> Button:
 	var b := Button.new()
+	b.set_meta("no_juice", true)  # 카드는 자기 튀는 동작과 소리가 있어요
 	b.custom_minimum_size = Vector2(130, 130)
 	b.add_theme_stylebox_override("normal", UI.box(Color(1, 1, 1, 0.7), Color("#D8C6A8"), 14, 2))
 	b.add_theme_stylebox_override("hover", UI.box(Color.WHITE, UI.PINK, 14, 3))

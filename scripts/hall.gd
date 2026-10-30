@@ -433,7 +433,7 @@ func _spawn_tick(delta: float) -> void:
 		return
 	var t = free.pick_random()
 	t.reserve()
-	var kind: String = Sprites.ANIMALS.pick_random()
+	var kind: String = GameState.customer_kind()
 	var order: String = GameState.menu_now().pick_random()
 	# 가끔 부탁 손님이 와요 (하루 한 번, 오전 10시 이후)
 	var qid := ""
