@@ -4,7 +4,7 @@
 - 74 눈사람 거인 → monsters/snowman_*(서기·걷기·던지기·아파함·녹음)
 - 75 과일 디저트 아이콘(머핀·타르트·롤; 레몬 칸은 그냥 레몬이라 안 써요)
 - 76 버섯·벌·아기 용의 걷기·아파함·쓰러짐
-- 77 꽃잎 언덕 꿀가게 안, 78 조개 해변 가게 안"""
+- 77 꽃잎 언덕 꿀가게 안, 78 조개 해변 가게 안, 79 과수원 과일 가판대 안"""
 import os, sys
 import numpy as np
 from PIL import Image
@@ -76,7 +76,7 @@ for name, b in [('blueberry_muffin', (410, 105, 640, 335)), ('peach_tart', (720,
     fit(cutout('75.png', b, tol=22, min_part=0.02), 72).save(os.path.join(A, 'items', name + '.png'))
 
 # 77, 78 다른 마을 가게 안
-for i, name in [(77, 'petal'), (78, 'beach')]:
+for i, name in [(77, 'petal'), (78, 'beach'), (79, 'orchard')]:
     im = unstar(np.array(Image.open(os.path.join(RAW, '%d.png' % i)).convert('RGB')).astype(float))
     Image.fromarray(np.clip(im, 0, 255).astype(np.uint8)).save(os.path.join(A, 'shops', name + '.png'))
 print('ok')

@@ -58,6 +58,8 @@ func _ready():
 	main.current.player.position = Vector2(166, 455); await _wait(0.5)
 	main.current._gather("blueberry"); main.current._gather("grape"); await _wait(0.8); await _shot("f10b_orchard_gather")
 	main.current.player.position = Vector2(706, 470); await _wait(1.0); await _shot("f10c_orchard_shop")
+	main.hud.shop_ctx = "orchard"; main.hud.open_trade("과일 가판대", ["apple", "peach", "lemon", "grape", "blueberry", "strawberry"]); await _wait(0.5); await _shot("f10d_orchard_inside")
+	main.hud.close_panel()
 	main.goto_field("snowflake_village", "forest_west"); await _wait(1.0)
 	main.current.player.position = Vector2(780, 520)
 	await _wait(2.0); await _shot("f11_boss")

@@ -135,7 +135,7 @@ static func get_area(id: String) -> Dictionary:
 					[Vector2(655, 768), Vector2(778, 690), Vector2(921, 640), Vector2(1115, 700), Vector2(1126, 768)],
 					[Vector2(1330, 660), Vector2(1408, 640), Vector2(1408, 768), Vector2(1330, 768)],
 				], Rect2(614, -40, 205, 52), Vector2(716, 30),
-				{"npc": "deer", "name": "과일 가판대", "items": ["apple", "peach", "lemon", "grape", "blueberry", "strawberry"], "pos": Vector2(706, 432)})
+				{"npc": "dr1", "look": "orchard", "name": "과일 가판대", "items": ["apple", "peach", "lemon", "grape", "blueberry", "strawberry"], "pos": Vector2(706, 432)})
 		"snowflake_village":
 			var d := town("눈꽃 마을", "maps/snowflake_village", "forest_west", [Vector2(0, 0), Vector2(1408, 0), Vector2(1408, 768), Vector2(0, 768)], [
 					[Vector2(67, 100), Vector2(123, 75), Vector2(338, 75), Vector2(394, 130), Vector2(379, 215), Vector2(307, 245), Vector2(153, 250), Vector2(72, 210)],

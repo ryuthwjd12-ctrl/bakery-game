@@ -40,6 +40,8 @@ const SHOP_LOOK := {
 		"greet": ["숲길은 위험해. 든든한 걸로 골라!", "이 뒤집개, 보기보다 세다고!", "비싼 건 다 이유가 있지."]},
 	"petal": {"bg": "shops/petal", "keeper": "animals/rb1_front", "happy": "animals/rb1_happy", "color": "#E8B04A", "pitch": 1.3,
 		"greet": ["꽃잎 언덕에 온 걸 환영해!", "오늘 딴 꿀이야, 정말 달아~", "말차 차 한 잔 어때?"]},
+	"orchard": {"bg": "shops/orchard", "keeper": "animals/dr1_front", "happy": "animals/dr1_happy", "color": "#C0584A", "pitch": 1.2,
+		"greet": ["오늘 딴 과일이야, 맛보고 가!", "복숭아가 제일 달 때야~", "과일은 상하지 않으니 넉넉히 사 가."]},
 	"beach": {"bg": "shops/beach", "keeper": "animals/ct1_front", "happy": "animals/ct1_happy", "color": "#5FB5AE", "pitch": 1.1,
 		"greet": ["냐옹~ 바닷바람 시원하지?", "초콜릿은 배로 들어온 거야!", "조개는 팔지 않아, 내 보물이거든."]},
 }
