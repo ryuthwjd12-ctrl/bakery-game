@@ -12,7 +12,7 @@ ROOT = os.path.join(HERE, '..')
 src = open(os.path.join(HERE, 'round4.py')).read()
 exec(src[src.index('def unstar'):src.index('def save')])
 
-MAPS = {58: 'forest_path', 59: 'petal_hill', 60: 'seashell_beach', 61: 'apple_orchard', 62: 'snowflake_village'}
+MAPS = {58: "forest_path", 59: "petal_hill", 60: "seashell_beach", 61: "apple_orchard", 62: "snowflake_village"} if "--annex" not in sys.argv else {}
 for i, name in MAPS.items():
     im = np.array(Image.open(os.path.join(ROOT, 'art', 'raw', '%d.png' % i)).convert('RGB')).astype(float)
     if name == 'seashell_beach':
@@ -39,3 +39,10 @@ for i, name in MAPS.items():
     im = unstar(im)
     Image.fromarray(np.clip(im, 0, 255).astype(np.uint8)).save(os.path.join(ROOT, 'assets', 'maps', name + '.png'))
     print(name)
+
+# 53 넓은 빈 홀 → 가게 별관(1.3배로 키워 2579x686)
+im = np.array(Image.open(os.path.join(ROOT, 'art', 'raw', '53.png')).convert('RGB')).astype(float)
+im = unstar(im)
+Image.fromarray(np.clip(im, 0, 255).astype(np.uint8)).resize((2579, 686), Image.LANCZOS).save(
+    os.path.join(ROOT, 'assets', 'backgrounds', 'annex.png'))
+print('annex')

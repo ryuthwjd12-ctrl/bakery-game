@@ -44,15 +44,17 @@ const SEATS := [
 	{"seat": Vector2(1028, 392), "food": Vector2(1085, 382), "stand": Vector2(955, 430), "left": false},
 ]
 
-## 별관: 빈 방 그림을 홀 오른쪽(ANNEX_X)에 이어 붙여요. 가구점에서 산 탁자 세트가 SLOT 자리에 놓여요.
+## 별관: 가로로 긴 빈 방 그림(2579x686)을 홀 오른쪽(ANNEX_X)에 이어 붙여요.
+## 카메라가 주인공을 따라 옆으로 움직여요. 가구점에서 산 탁자 세트가 SLOT 자리에 한 줄로 놓여요.
 const ANNEX_X := 1600.0
-const ANNEX_FLOOR := [Vector2(688, 196), Vector2(1330, 522), Vector2(1135, 610), Vector2(1135, 768),
-	Vector2(500, 768), Vector2(75, 522)]
-const ANNEX_FRONT := [Vector2(950, 575), Vector2(1135, 490), Vector2(1135, 768), Vector2(950, 768)]
-const ANNEX_BACK := Vector2(405, 362)  # 별관 왼쪽 문 → 홀
-const ANNEX_ENTRY := Vector2(442, 384)  # 홀에서 오면 서는 곳
-const ANNEX_SLOTS := [Vector2(470, 280), Vector2(210, 370), Vector2(760, 380), Vector2(480, 505)]
-const DECOR_SPOTS := [["furniture/plant_big", Vector2(1230, 349)], ["furniture/plant_small", Vector2(92, 397)]]
+const ANNEX_SIZE := Vector2i(2579, 686)
+const ANNEX_FLOOR := [Vector2(644, 392), Vector2(1934, 392), Vector2(2579, 626), Vector2(2579, 686),
+	Vector2(0, 686), Vector2(0, 626)]
+const ANNEX_BACK := Vector2(358, 552)  # 별관 왼쪽 아치문 → 홀
+const ANNEX_ENTRY := Vector2(430, 590)  # 홀에서 오면 서는 곳
+const ANNEX_EXIT := Vector2(2405, 645)  # 오른쪽 문 → 마을
+const ANNEX_SLOTS := [Vector2(700, 410), Vector2(1100, 410), Vector2(1500, 410), Vector2(1860, 440)]
+const DECOR_SPOTS := [["furniture/plant_big", Vector2(2250, 470)], ["furniture/plant_small", Vector2(520, 430)]]
 ## 탁자 세트 그림(table_set.png) 왼쪽 위 기준 좌표
 const SET_BLOCK := [Vector2(6, 100), Vector2(76, 195), Vector2(146, 210), Vector2(261, 178), Vector2(256, 30),
 	Vector2(196, 2), Vector2(76, 2), Vector2(6, 30)]
@@ -133,7 +135,7 @@ func _add_table(sd: Dictionary, off: Vector2):
 
 ## 별관 걷기 지도와 가구를 (다시) 만들어요. 탁자나 화분을 사면 불러요.
 func _build_annex() -> void:
-	var blocks: Array = [ANNEX_FRONT]
+	var blocks: Array = []
 	for i in GameState.annex_tables:
 		var o: Vector2 = ANNEX_SLOTS[i]
 		var poly: Array = []
@@ -146,7 +148,7 @@ func _build_annex() -> void:
 		var w := float(tex.get_width())
 		var h := float(tex.get_height())
 		blocks.append([o + Vector2(w * 0.1, h * 0.7), o + Vector2(w * 0.9, h * 0.7), o + Vector2(w * 0.9, h), o + Vector2(w * 0.1, h)])
-	annex_walk = WalkMap.new(ANNEX_FLOOR, blocks)
+	annex_walk = WalkMap.new(ANNEX_FLOOR, blocks, 12, ANNEX_SIZE)
 
 
 ## 가구점에서 산 물건을 별관에 놓아요.
@@ -205,9 +207,9 @@ func in_annex(p: Vector2) -> bool:
 
 func _set_cam_room(annex: bool) -> void:
 	cam.limit_left = int(ANNEX_X) if annex else 0
-	cam.limit_right = int(ANNEX_X) + 1408 if annex else 1408
+	cam.limit_right = int(ANNEX_X) + ANNEX_SIZE.x if annex else 1408
 	cam.limit_top = 0
-	cam.limit_bottom = 768
+	cam.limit_bottom = ANNEX_SIZE.y if annex else 768
 	cam.reset_smoothing()
 
 
@@ -286,7 +288,7 @@ func _actions() -> Array:
 	out.append({"pos": DOOR, "r": 50.0, "text": "밖으로", "do": func(): main.goto("village", "hall"), "door": true})
 	out.append({"pos": ANNEX_DOOR, "r": 50.0, "text": "별관으로", "do": _to_annex, "door": true})
 	out.append({"pos": ANNEX_BACK + Vector2(ANNEX_X, 0), "r": 50.0, "text": "홀로", "do": _to_hall, "door": true})
-	out.append({"pos": Vector2(915, 705) + Vector2(ANNEX_X, 0), "r": 50.0, "text": "밖으로", "do": func(): main.goto("village", "hall"), "door": true})
+	out.append({"pos": ANNEX_EXIT + Vector2(ANNEX_X, 0), "r": 50.0, "text": "밖으로", "do": func(): main.goto("village", "hall"), "door": true})
 	return out
 
 
@@ -472,12 +474,12 @@ func _on_left(t, kind: String, _happy: bool) -> void:
 
 
 func _door_for(t) -> Vector2:
-	return Vector2(ANNEX_X + 915, 705) if in_annex(t.position) else DOOR
+	return ANNEX_EXIT + Vector2(ANNEX_X, 0) if in_annex(t.position) else DOOR
 
 
 func _new_customer(kind: String) -> Node2D:
 	var a := Animal.new()
-	a.setup(kind, ANIMAL_SCALE * (0.9 if kind == "chick" else 1.0))
+	a.setup(kind, ANIMAL_SCALE * (0.9 if kind == "chick" else 1.0) * Sprites.size_fix(kind))
 	return a
 
 

@@ -62,6 +62,9 @@ static func animal_frames(kind: String) -> SpriteFrames:
 	sf.remove_animation("default")
 	for anim in ["front", "back", "right", "wait", "eat", "happy", "sad"]:
 		var key: String = kind + "_" + anim
+		# 다람쥐 주민(sq1~6)은 앉아 있을 때 탁자 쪽을 보는 옆모습을 써요
+		if kind.begins_with("sq") and anim in ["wait", "eat", "happy", "sad"]:
+			key = kind + "_right"
 		if not has_strip(key):
 			for f in FALLBACK.get(anim, []):
 				if has_strip(kind + "_" + f):
@@ -73,6 +76,11 @@ static func animal_frames(kind: String) -> SpriteFrames:
 		_add(sf, anim, key, fps)
 	_cache[ck] = sf
 	return sf
+
+
+## 다람쥐 주민(sq1~6) 그림은 다른 동물보다 크게 그려져 있어서 키를 맞추는 배율
+static func size_fix(kind: String) -> float:
+	return 121.0 / frame_height(kind + "_front") if kind.begins_with("sq") else 1.0
 
 
 static func frame_height(key: String) -> int:

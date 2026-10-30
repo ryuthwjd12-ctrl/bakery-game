@@ -86,7 +86,7 @@ const RECIPES := [
 const QUESTS := [
 	{"id": "heart", "kind": "rabbit", "dish": "heart_cookie", "reward": 200, "rep": 4, "min_day": 2,
 		"story": "저… 좋아하는 친구가 있는데요, 오늘 마음을 전하고 싶어요.\n산딸기가 들어간 하트 쿠키를 만들어 줄 수 있어요?"},
-	{"id": "acorn", "kind": "squirrel", "dish": "acorn_cookie", "reward": 220, "rep": 4, "min_day": 3,
+	{"id": "acorn", "kind": "sq4", "dish": "acorn_cookie", "reward": 220, "rep": 4, "min_day": 3,
 		"story": "겨울 준비로 도토리를 모으다 너무 지쳤어요.\n달걀을 넣은 초코 도토리 쿠키라면 힘이 날 것 같아요!"},
 	{"id": "flower", "kind": "deer", "dish": "flower_cookie", "reward": 260, "rep": 5, "min_day": 4,
 		"story": "내일이 할머니 생신이에요. 꽃을 좋아하시거든요.\n생크림을 올린 꽃 모양 쿠키를 선물하고 싶어요."},
@@ -425,7 +425,7 @@ func customer_kind() -> String:
 		if VILLAGE_ANIMAL.has(v):
 			guests.append(VILLAGE_ANIMAL[v])
 	if guests.is_empty() or randf() < 0.6:
-		return "squirrel"
+		return "sq%d" % randi_range(1, 6)
 	return guests.pick_random()
 
 

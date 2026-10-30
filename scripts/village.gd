@@ -202,7 +202,7 @@ func _wander(a) -> void:
 ## 가게로 가는 손님이 마을 입구에서 빵집 문까지 걸어와요.
 func _on_customer(kind: String) -> void:
 	var a := Animal.new()
-	a.setup(kind, ANIMAL_SCALE * (1.1 if kind == "chick" else 1.0))
+	a.setup(kind, ANIMAL_SCALE * (1.1 if kind == "chick" else 1.0) * Sprites.size_fix(kind))
 	a.speed = 34.0
 	var start: Vector2 = ENTRANCES.pick_random()
 	a.position = start
@@ -217,7 +217,7 @@ func _on_customer(kind: String) -> void:
 ## 가게에서 나온 손님이 마을 밖으로 걸어가요.
 func _on_customer_left(kind: String) -> void:
 	var a := Animal.new()
-	a.setup(kind, ANIMAL_SCALE * (1.1 if kind == "chick" else 1.0))
+	a.setup(kind, ANIMAL_SCALE * (1.1 if kind == "chick" else 1.0) * Sprites.size_fix(kind))
 	a.speed = 34.0
 	a.position = BAKERY_DOOR
 	world.add_child(a)
