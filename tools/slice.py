@@ -70,10 +70,10 @@ def split_seeds(f,box,seed_ymax,tol=22):
         frames.append(trim(Image.fromarray(a,'RGBA')))
     return frames
 
-def normalize(frames,target_h,name,cols=None):
+def normalize(frames,target_h,name,scale=None):
     """scale so median height=target_h, put on common canvas, bottom aligned, head-centered; save strip"""
     hs=sorted(f.height for f in frames); med=hs[len(hs)//2]
-    s=target_h/med
+    s=scale if scale else target_h/med
     fr=[f.resize((max(1,round(f.width*s)),max(1,round(f.height*s))),Image.LANCZOS) for f in frames]
     # head centroid x
     cx=[]
@@ -87,7 +87,7 @@ def normalize(frames,target_h,name,cols=None):
     for i,(f,c) in enumerate(zip(fr,cx)):
         strip.paste(f,(int(i*W+W/2-c),H-f.height-1),f)
     strip.save(OUT+name)
-    return {'file':name,'frame_w':W,'frame_h':H,'count':len(fr)}
+    return {'file':name,'frame_w':W,'frame_h':H,'count':len(fr),'scale':s}
 
 meta={}
 H=220
@@ -177,8 +177,68 @@ for nm,(c,y) in {'bowl':(0,469),'rolling_pin':(1,469),'star_cutter':(2,469),'cak
 for nm,b in {'round_table':(30,674,110,742),'pink_chair':(210,662,266,745),'display_case':(344,662,426,744),'plant':(505,661,562,744),'picture':(623,667,709,738),'lamp':(574,659,613,744)}.items():
     f=trim(grab(I,b,keep_largest=True)); f.save(OUT+'furniture/'+nm+'.png')
 icon((1075,314,1151,387),'rug_icon',size=96,folder='furniture/')
+# ---- animal sheets: 4 rows x 8 (front, back, right walk; sit row)
+os.makedirs(OUT+'animals',exist_ok=True)
+ANIMAL_SHEETS={'rabbit':'42-rabbit.png'}
+def row_frames(f,yr):
+    im,m=cut(f)
+    lab,n=ndimage.label(m)
+    out=[]
+    for i,sl in enumerate(ndimage.find_objects(lab)):
+        if sl is None: continue
+        cy=(sl[0].start+sl[0].stop)/2
+        if yr[0]<=cy<yr[1] and (lab[sl]==i+1).sum()>1500:
+            out.append((sl[1].start,sl[0].start,sl[1].stop,sl[0].stop))
+    return [trim(grab(f,b,keep_largest=True)) for b in sorted(out)]
+for name,f in ANIMAL_SHEETS.items():
+    hgt=Image.open(R+f).height; band=hgt/4
+    rows=[row_frames(f,(band*i,band*(i+1))) for i in range(4)]
+    hs=sorted(x.height for x in rows[0]); sc=118/hs[len(hs)//2]
+    for anim,frs in zip(['front','back','right','sit'],rows):
+        meta[name+'_'+anim]=normalize(frs,118,f'animals/{name}_{anim}.png',scale=sc)
+# rabbit sit row: 0,1 wait / 3,4 eat / 5 happy / 7 sad -> split into named strips
+import shutil
+def split_strip(name,src,groups):
+    info=meta.pop(name+'_'+src); im=Image.open(OUT+info['file'])
+    W=info['frame_w']
+    for g,idx in groups.items():
+        st=Image.new('RGBA',(W*len(idx),im.height))
+        for k,i in enumerate(idx): st.paste(im.crop((i*W,0,(i+1)*W,im.height)),(k*W,0))
+        fn=f'animals/{name}_{g}.png'; st.save(OUT+fn)
+        meta[name+'_'+g]=dict(info,file=fn,count=len(idx))
+    os.remove(OUT+info['file'])
+split_strip('rabbit','sit',{'wait':[0,1],'eat':[3,4],'happy':[5],'sad':[7]})
+# mixed sheet (43): boxes by animal
+M='43-animals-mixed.png'
+MIX={
+ 'cat':{'front':[(732,25,803,134),(838,25,910,135),(944,25,1016,134),(1050,25,1124,134),(1158,25,1229,135)],
+        'back':[(726,147,802,255),(835,147,910,255),(941,147,1016,254)],
+        'right':[(1047,148,1121,254),(1153,148,1227,255),(1259,148,1332,255)],
+        'wait':[(726,268,801,372),(835,267,908,372)],'eat':[(954,268,1016,372),(1059,267,1121,372)],
+        'happy':[(1163,268,1225,372)],'sad':[(1269,273,1334,373)]},
+ 'deer':{'front':[(39,408,113,536),(322,409,393,535)],'back':[(138,408,212,536)],'right':[(230,408,298,536)]},
+ 'bear':{'front':[(46,553,111,655),(325,554,389,653)],'back':[(142,553,206,655)],'right':[(234,553,300,654)],
+         'wait':[(50,664,110,750),(144,665,204,750)],'eat':[(238,665,296,750)],'happy':[(328,665,388,750)]},
+ 'chick':{'front':[(470,419,520,486),(548,421,598,486),(626,419,676,486),(701,421,750,486),(777,421,825,485),(851,421,900,486)],
+          'back':[(626,497,678,567),(702,499,753,567)],'right':[(778,499,828,566),(852,499,903,567)],
+          'wait':[(470,667,522,744),(702,673,753,742)],'eat':[(549,668,601,744),(778,674,826,742)],'happy':[(627,668,678,744)]},
+ 'squirrel':{'front':[(945,578,1015,658),(1030,578,1098,658),(1113,578,1178,657),(1192,577,1259,657),(1274,578,1342,657)],
+             'right':[(947,498,1010,570),(1033,499,1094,570),(1116,499,1175,569),(1196,499,1255,570),(1275,499,1338,569)],
+             'wait':[(945,668,1017,748),(1031,668,1102,749)],'eat':[(1112,668,1179,750),(1190,668,1261,748)],'happy':[(1273,668,1343,748)]},
+}
+for name,anims in MIX.items():
+    fr={a:[trim(grab(M,b,keep_largest=True)) for b in bs] for a,bs in anims.items()}
+    hs=sorted(x.height for x in fr['front']); sc=(96 if name=='chick' else 116)/hs[len(hs)//2]
+    for a,frs in fr.items():
+        meta[name+'_'+a]=normalize(frs,116,f'animals/{name}_{a}.png',scale=sc)
+# sprite data for the game
+with open(os.path.join(HERE,'..','scripts','sprite_data.gd'),'w') as fh:
+    fh.write('class_name SpriteData\nextends RefCounted\n## tools/slice.py가 만든 파일이에요. 직접 고치지 말아요.\n## 값: [그림 경로, 한 칸 너비, 높이, 칸 수]\n\nconst STRIPS := {\n')
+    for k,v in meta.items():
+        fh.write(f'\t"{k}": ["{v["file"][:-4]}", {v["frame_w"]}, {v["frame_h"]}, {v["count"]}],\n')
+    fh.write('}\n')
 # backgrounds
-for src,dst in [('33-bakery-empty-room.png','hall_empty.png'),('17-kitchen.png','kitchen.png'),('18-acorn-village.png','acorn_village.png')]:
+for src,dst in [('17-kitchen.png','kitchen.png'),('18-acorn-village.png','acorn_village.png')]:
     Image.open(R+src).convert('RGB').save(OUT+'backgrounds/'+dst)
 Image.open(R+I).convert('RGB').crop((828,436,1382,748)).save(OUT+'backgrounds/title.png')
 print(json.dumps(meta,indent=0))
