@@ -25,6 +25,20 @@ var top_left: PanelContainer
 var top_right: HBoxContainer
 var panel: Control  # 지금 열려 있는 창
 var screen := ""
+## 마을 가게 창: 가게 안 그림, 주인 다람쥐, 인사말, 테두리 색이 가게마다 달라요.
+var shop_ctx := ""
+const SHOP_LOOK := {
+	"ingredient": {"bg": "shops/ingredient", "keeper": "shops/keeper_ingredient", "color": "#7FA65A", "pitch": 1.0,
+		"greet": ["어서 와! 오늘 들어온 밀가루가 아주 고와.", "달걀은 아침에 막 가져온 거야!", "숲에서 주운 호두도 받아 줄게."]},
+	"interior": {"bg": "shops/interior", "keeper": "shops/keeper_interior", "color": "#A98BC9", "pitch": 1.15,
+		"greet": ["가게를 예쁘게 꾸며 볼까요?", "화분 하나면 분위기가 확 달라져요~", "오늘은 어떤 느낌으로 꾸며 볼까요?"]},
+	"furniture": {"bg": "shops/furniture", "keeper": "shops/keeper_furniture", "color": "#A0703F", "pitch": 0.85,
+		"greet": ["튼튼하게 만들었지! 탁자 보러 왔나?", "망치질 소리 시끄럽지? 헤헤.", "손님이 많아지면 탁자가 더 필요할걸."]},
+	"dish": {"bg": "shops/dish", "keeper": "shops/keeper_dish", "color": "#6FA8C9", "pitch": 1.25,
+		"greet": ["예쁜 그릇에 담으면 맛도 두 배예요.", "조심조심, 깨지기 쉬워요!", "새 찻잔이 들어왔어요~"]},
+	"weapon": {"bg": "shops/weapon", "keeper": "shops/keeper_weapon", "color": "#C0584A", "pitch": 0.75,
+		"greet": ["숲길은 위험해. 든든한 걸로 골라!", "이 뒤집개, 보기보다 세다고!", "비싼 건 다 이유가 있지."]},
+}
 
 const GUIDE := [
 	["order", "손님에게 가서 E(또는 클릭)로 주문 받기"],
@@ -303,10 +317,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-func close_panel() -> void:
+func close_panel(keep_shop := false) -> void:
 	if panel:
 		panel.queue_free()
 		panel = null
+	if not keep_shop:
+		shop_ctx = ""
 	get_tree().paused = false
 
 
@@ -316,11 +332,17 @@ func is_panel_open() -> bool:
 
 ## 가운데에 뜨는 창을 만들어요.
 func window(title: String, w: float, closable := true) -> VBoxContainer:
-	close_panel()
+	var reopen := panel != null
+	close_panel(true)
 	var shade := ColorRect.new()
 	shade.color = Color(0.25, 0.15, 0.1, 0.4)
 	shade.size = Vector2(1408, 768)
+	if shop_ctx != "":
+		_shop_scene(shade, reopen)
 	var pc := PanelContainer.new()
+	if shop_ctx != "":
+		pc.set_meta("right", true)
+		pc.add_theme_stylebox_override("panel", UI.box(Color(1, 0.98, 0.93, 0.97), Color(SHOP_LOOK[shop_ctx].color), 18, 4))
 	pc.custom_minimum_size = Vector2(w, 0)
 	shade.add_child(pc)
 	var vb := VBoxContainer.new()
@@ -345,6 +367,58 @@ func _center(pc: Control) -> void:
 	if is_instance_valid(pc):
 		pc.reset_size()
 		pc.position = (Vector2(1408, 768) - pc.size) / 2
+		if pc.has_meta("right"):
+			pc.position.x = 1408 - pc.size.x - 28
+
+
+## 가게 창 뒤: 가게 안 그림과 주인. 처음 들어오면 인사하고, 사고팔면(창이 다시 그려지면) 웃으며 폴짝 뛰어요.
+func _shop_scene(shade: ColorRect, reopen: bool) -> void:
+	var look: Dictionary = SHOP_LOOK[shop_ctx]
+	shade.color = Color.BLACK
+	var bg := TextureRect.new()
+	bg.texture = Sprites.tex(look.bg)
+	bg.size = Vector2(1408, 768)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shade.add_child(bg)
+	var dim := ColorRect.new()
+	dim.color = Color(0.25, 0.15, 0.1, 0.18)
+	dim.size = Vector2(1408, 768)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shade.add_child(dim)
+	var key: String = look.keeper
+	if reopen and ResourceLoader.exists("res://assets/%s_happy.png" % key):
+		key += "_happy"
+	var tex := Sprites.tex(key)
+	var k := TextureRect.new()
+	k.texture = tex
+	k.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	k.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT
+	var h := 420.0
+	k.size = Vector2(h * tex.get_width() / tex.get_height(), h)
+	k.position = Vector2(60, 768 - h - 10)
+	k.pivot_offset = Vector2(k.size.x / 2, h)
+	k.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shade.add_child(k)
+	var tw := k.create_tween()
+	if reopen:
+		tw.tween_property(k, "position:y", k.position.y - 24, 0.12).set_ease(Tween.EASE_OUT)
+		tw.tween_property(k, "position:y", k.position.y, 0.16).set_ease(Tween.EASE_IN)
+	else:
+		k.scale = Vector2(0.9, 0.9)
+		tw.tween_property(k, "scale", Vector2(1.04, 0.97), 0.14)
+		tw.tween_property(k, "scale", Vector2.ONE, 0.12)
+		Audio.sfx("order", look.pitch)
+		var say := UI.label(look.greet.pick_random(), 20)
+		say.add_theme_stylebox_override("normal", UI.box(Color("#FFFDF6"), Color(look.color), 16, 3))
+		say.custom_minimum_size = Vector2(0, 0)
+		say.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		say.size = Vector2(300, 0)
+		say.position = Vector2(50, 768 - h - 110)
+		say.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		shade.add_child(say)
+		say.modulate.a = 0.0
+		var t2 := say.create_tween()
+		t2.tween_property(say, "modulate:a", 1.0, 0.2)
 
 
 func toggle_book() -> void:
@@ -403,8 +477,19 @@ func open_trade(title: String, items: Array, selling := false) -> void:
 	var hint := UI.label("  되팔 때는 산 값의 30%만 받아요." if selling else "  재료는 상하지 않아요.", 16, UI.CHESTNUT)
 	tabs.add_child(hint)
 	vb.add_child(tabs)
+	var list := VBoxContainer.new()
+	list.add_theme_constant_override("separation", 8)
 	for id in items:
-		vb.add_child(_trade_row(id, selling, func(): open_trade(title, items, selling)))
+		list.add_child(_trade_row(id, selling, func(): open_trade(title, items, selling)))
+	if items.size() > 7:
+		var sc := ScrollContainer.new()
+		sc.custom_minimum_size = Vector2(0, 470)
+		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		sc.add_child(list)
+		vb.add_child(sc)
+	else:
+		vb.add_child(list)
 
 
 func _trade_row(id: String, selling: bool, reopen: Callable) -> HBoxContainer:
@@ -459,7 +544,7 @@ func _trade_row(id: String, selling: bool, reopen: Callable) -> HBoxContainer:
 func open_weapon_shop() -> void:
 	if not panel:
 		Audio.sfx("door")
-	var vb := window("도토리 무기 상점", 860)
+	var vb := window("다람쥐 무기점", 860)
 	vb.add_child(UI.label("근접 무기는 앞으로 휘두르고, 마법 무기는 반짝이를 멀리 쏴요(마나 사용). 되팔면 30%.", 16, UI.CHESTNUT))
 	for id in GameState.WEAPONS:
 		var w: Dictionary = GameState.WEAPONS[id]
@@ -569,7 +654,8 @@ func open_world_map() -> void:
 
 ## 한 개씩 사는 가게(가구점, 도구점). entries: {icon, name, price, note, block: Callable -> String, buy: Callable}
 func open_store(title: String, desc: String, entries: Array) -> void:
-	Audio.sfx("door")
+	if not panel:
+		Audio.sfx("door")
 	var vb := window(title, 820)
 	vb.add_child(UI.label(desc, 18, UI.CHESTNUT))
 	for e in entries:

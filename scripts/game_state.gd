@@ -155,13 +155,14 @@ const SAVE_KEYS := ["hero", "gold", "day", "inv", "stock", "known", "oven", "rep
 	"annex_tables", "decor", "hp", "mp", "weapons", "weapon", "quests_done", "boss_done", "visited", "dishes"]
 ## 무기: 근접(melee)은 앞으로 휘두르고, 마법(magic)은 반짝이를 쏘며 마나를 써요. 비쌀수록 세요.
 const WEAPONS := {
-	"spatula": {"name": "나무 뒤집개", "type": "melee", "power": 8, "price": 0, "icon": "items/spatula"},
-	"rolling_pin": {"name": "밀대 몽둥이", "type": "melee", "power": 14, "price": 200, "icon": "items/rolling_pin"},
-	"piping_bag": {"name": "크림 짤주머니", "type": "magic", "power": 12, "mp": 4, "price": 300, "icon": "items/piping_bag"},
-	"cake_tin": {"name": "케이크 틀 망치", "type": "melee", "power": 22, "price": 550, "icon": "items/cake_tin"},
-	"star_cutter": {"name": "별빛 쿠키 틀", "type": "magic", "power": 20, "mp": 5, "price": 700, "icon": "items/star_cutter"},
-	"honey_staff": {"name": "꿀단지 지팡이", "type": "magic", "power": 30, "mp": 6, "price": 1200, "icon": "items/honey_jar"},
-	"walnut_hammer": {"name": "호두 깨기 망치", "type": "melee", "power": 36, "price": 1500, "icon": "items/walnut"},
+	"spatula": {"name": "나무 뒤집개", "type": "melee", "power": 8, "price": 0, "icon": "items/w_spatula"},
+	"rolling_pin": {"name": "밀대 몽둥이", "type": "melee", "power": 14, "price": 200, "icon": "items/w_rolling_pin"},
+	"piping_bag": {"name": "크림 짤주머니", "type": "magic", "power": 12, "mp": 4, "price": 300, "icon": "items/w_piping_bag"},
+	"cake_tin": {"name": "케이크 틀 망치", "type": "melee", "power": 22, "price": 550, "icon": "items/w_cake_tin"},
+	"star_cutter": {"name": "별빛 쿠키 틀", "type": "magic", "power": 20, "mp": 5, "price": 700, "icon": "items/w_star_cutter"},
+	"honey_staff": {"name": "꿀단지 지팡이", "type": "magic", "power": 30, "mp": 6, "price": 1200, "icon": "items/w_honey_staff"},
+	"walnut_hammer": {"name": "호두 깨기 망치", "type": "melee", "power": 36, "price": 1500, "icon": "items/w_walnut_hammer"},
+	"candy_cane": {"name": "사탕 지팡이", "type": "magic", "power": 44, "mp": 7, "price": 2400, "icon": "items/w_candy_cane"},
 }
 ## 한 마을에는 한 동물만 살아요.
 const VILLAGE_ANIMAL := {"village": "squirrel", "petal_hill": "rabbit", "seashell_beach": "cat",

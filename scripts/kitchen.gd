@@ -5,26 +5,26 @@ extends Control
 var main: Node
 
 const FURNITURE := {
-	"cabinet": {"tex": "kitchen/cabinet", "pos": Vector2(140, 52)},
-	"fridge": {"tex": "kitchen/fridge", "pos": Vector2(430, 32)},
-	"pantry": {"tex": "kitchen/pantry", "pos": Vector2(690, 102)},
+	"cabinet": {"tex": "kitchen/cabinet", "pos": Vector2(84, 58)},
+	"fridge": {"tex": "kitchen/fridge", "pos": Vector2(470, 170)},
+	"pantry": {"tex": "kitchen/pantry", "pos": Vector2(730, 120)},
 }
 ## 누를 수 있는 곳(냉장고는 위 칸이 냉동고)
 const HOTSPOTS := {
-	"cabinet": Rect2(150, 60, 262, 470),
-	"freezer": Rect2(442, 40, 228, 162),
-	"fridge": Rect2(442, 204, 228, 326),
-	"pantry": Rect2(704, 170, 374, 370),
+	"cabinet": Rect2(100, 64, 360, 386),
+	"freezer": Rect2(476, 176, 224, 134),
+	"fridge": Rect2(476, 312, 224, 140),
+	"pantry": Rect2(736, 124, 234, 328),
 }
 const PANEL_STYLE := {
 	"cabinet": ["#FBF3E3", "#8E5A3A"], "fridge": ["#F1F8FB", "#7FB2CF"],
 	"freezer": ["#E8F3FA", "#A9CFE8"], "pantry": ["#F7EDCB", "#8E5A3A"],
 }
-const SLOT_X := [135, 300, 463, 628, 793]
-const SLOT_Y := 578
-const SLOT_SIZE := Vector2(135, 124)
-const OK_RECT := Rect2(956, 598, 146, 82)
-const OVEN_MOUTH := Rect2(1222, 352, 118, 150)
+const SLOT_X := [42, 242, 440, 638, 838, 1036]
+const SLOT_Y := 562
+const SLOT_SIZE := Vector2(170, 165)
+const OK_RECT := Rect2(1245, 580, 120, 120)
+const OVEN_MOUTH := Rect2(1145, 250, 170, 112)
 
 var slots: Array = []
 var slot_icons: Array = []
@@ -69,7 +69,7 @@ func _ready() -> void:
 	oven_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(oven_glow)
 
-	for i in 5:
+	for i in SLOT_X.size():
 		var r := Rect2(Vector2(SLOT_X[i], SLOT_Y), SLOT_SIZE)
 		var g := UI.icon(null, 92)
 		g.position = r.position + (r.size - Vector2(92, 92)) / 2
@@ -83,7 +83,7 @@ func _ready() -> void:
 		slot_icons.append(ic)
 		add_child(UI.hotspot(r, _remove_slot.bind(i)))
 
-	var ok := UI.label("굽기", 30)
+	var ok := UI.label("굽기", 28)
 	ok.position = OK_RECT.position
 	ok.size = OK_RECT.size
 	ok.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -99,7 +99,7 @@ func _ready() -> void:
 	clear.expand_icon = true
 	clear.custom_minimum_size = Vector2(52, 52)
 	clear.tooltip_text = "칸 비우기 (재료는 그대로)"
-	clear.position = Vector2(1004, 684)
+	clear.position = Vector2(1352, 520)
 	clear.pressed.connect(func():
 		_bounce(clear, 0.15)
 		_clear_slots())
@@ -107,7 +107,7 @@ func _ready() -> void:
 
 	var oven_panel := PanelContainer.new()
 	oven_panel.add_theme_stylebox_override("panel", UI.box(Color(1, 0.97, 0.9, 0.92), UI.OUTLINE, 14, 2))
-	oven_panel.position = Vector2(1020, 62)
+	oven_panel.position = Vector2(1160, 16)
 	oven_panel.custom_minimum_size = Vector2(210, 0)
 	oven_box = VBoxContainer.new()
 	oven_panel.add_child(oven_box)
@@ -121,7 +121,7 @@ func _ready() -> void:
 	add_child(msg_l)
 
 	var back := UI.button("← 홀로", func(): main.goto("hall", "kitchen"))
-	back.position = Vector2(16, 70)
+	back.position = Vector2(16, 470)
 	add_child(back)
 
 	# 받은 부탁이 있으면 위쪽에 스페셜 요리를 보여 줘요
@@ -163,10 +163,18 @@ func _bounce(c: Control, amount := 0.06) -> void:
 	tw.tween_property(c, "scale", Vector2.ONE, 0.08)
 
 
+## 가구는 배경 그림 위에 같은 그림을 얹은 거라, 줄어들지 않고 살짝 커졌다 돌아와요.
+func _grow(c: Control) -> void:
+	var tw := create_tween()
+	tw.tween_property(c, "scale", Vector2(1.04, 1.025), 0.07)
+	tw.tween_property(c, "scale", Vector2(1.01, 1.035), 0.07)
+	tw.tween_property(c, "scale", Vector2.ONE, 0.09)
+
+
 func _open_storage(k: String) -> void:
 	if not _quiet:
 		Audio.sfx("click")
-		_bounce(furn_sprites["fridge" if k == "freezer" else k], 0.03)
+		_grow(furn_sprites["fridge" if k == "freezer" else k])
 		if popup_kind == k:
 			_close_popup()
 			return
@@ -246,7 +254,7 @@ func _available(id: String) -> int:
 
 func _pick(id: String, card: Button) -> void:
 	_bounce(card, 0.08)
-	if slots.size() >= 5:
+	if slots.size() >= SLOT_X.size():
 		_say("조합 칸이 가득 찼어요.")
 		Audio.sfx("fail")
 		return

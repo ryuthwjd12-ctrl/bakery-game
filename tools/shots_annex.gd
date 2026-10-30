@@ -11,7 +11,7 @@ func _ready():
 	await _wait(0.5); await _shot("a1_hall_cam")
 	main.goto("village")
 	await _wait(0.5)
-	main.current._furniture_shop(); await _wait(0.4); await _shot("a2_furniture_shop")
+	main.current._shop("furniture"); await _wait(0.4); await _shot("a2_furniture_shop")
 	for i in 4:
 		GameState.annex_tables += 1
 		main.hall.add_annex_set()

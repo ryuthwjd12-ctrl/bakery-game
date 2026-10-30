@@ -15,8 +15,7 @@ os.makedirs(OUT, exist_ok=True)
 
 SPOTS = {
     'backgrounds/acorn_village': {
-        'bush_left': (0, 250, 90, 350), 'bush_right': (1345, 262, 1408, 350),
-        'bush_bottom_left': (290, 628, 605, 768), 'bush_bottom_right': (795, 628, 1118, 768),
+        'bush_left': (5, 232, 107, 336), 'bed_west': (290, 408, 408, 496), 'bed_plaza': (768, 503, 890, 592),
     },
     'maps/forest_path': {
         'strawberry_patch': (255, 385, 495, 548), 'berry_bush': (505, 615, 665, 740),

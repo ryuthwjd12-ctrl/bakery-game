@@ -10,11 +10,11 @@ func _ready():
 	GameState.gold = 3000
 	main.goto("village")
 	await _wait(0.5)
-	main.hud.open_weapon_shop(); await _wait(0.4); await _shot("f1_weapon_shop")
+	main.current._shop("weapon"); await _wait(0.4); await _shot("f1_weapon_shop")
 	main.hud.close_panel()
 	# 마을 동쪽 끝으로 걸어 나가기
-	main.current.player.position = Vector2(1385, 362)
-	main.current.player.walk_to(Vector2(1400, 362))
+	main.current.player.position = Vector2(1385, 378)
+	main.current.player.walk_to(Vector2(1400, 378))
 	await _wait(1.0)
 	print("now: ", main.current_name, " ", main.current.get("area_id"))
 	await _wait(1.5); await _shot("f2_forest")

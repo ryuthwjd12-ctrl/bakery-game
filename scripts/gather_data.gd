@@ -5,10 +5,9 @@ extends RefCounted
 
 const SPOTS := {
 	"backgrounds/acorn_village": {
-		"bush_left": Vector2(0, 250),
-		"bush_right": Vector2(1345, 262),
-		"bush_bottom_left": Vector2(290, 628),
-		"bush_bottom_right": Vector2(795, 628),
+		"bush_left": Vector2(5, 232),
+		"bed_west": Vector2(290, 408),
+		"bed_plaza": Vector2(768, 503),
 	},
 	"maps/forest_path": {
 		"strawberry_patch": Vector2(255, 385),

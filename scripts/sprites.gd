@@ -13,10 +13,12 @@ static var _cache := {}
 
 
 static func has_strip(key: String) -> bool:
-	return SpriteData.STRIPS.has(key) or SpriteDataExtra.STRIPS.has(key)
+	return SpriteDataR4.STRIPS.has(key) or SpriteData.STRIPS.has(key) or SpriteDataExtra.STRIPS.has(key)
 
 
 static func info(key: String) -> Array:
+	if SpriteDataR4.STRIPS.has(key):
+		return SpriteDataR4.STRIPS[key]
 	return SpriteData.STRIPS[key] if SpriteData.STRIPS.has(key) else SpriteDataExtra.STRIPS[key]
 
 

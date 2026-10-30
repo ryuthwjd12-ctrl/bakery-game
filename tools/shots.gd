@@ -26,12 +26,15 @@ func _ready():
 	main.goto("village")
 	await _wait(1.5); await _shot("10_village")
 	await _wait(4.0); await _shot("10b_village_later")
-	main.current.player.position = Vector2(560, 250); await _wait(1.5); await _shot("11_village_shop")
-	main.hud.open_trade("도토리 재료 가게", ["flour", "sugar", "butter"]); await _wait(0.4); await _shot("12_shop")
-	main.hud.close_panel()
+	main.current.player.position = Vector2(561, 300); await _wait(1.5); await _shot("11_village_shop")
+	for id in ["ingredient", "interior", "furniture", "dish", "weapon"]:
+		main.current._shop(id); await _wait(0.5); await _shot("12_shop_" + id)
+		main.hud.close_panel()
+	main.current.player.position = Vector2(1000, 420); await _wait(1.5); await _shot("10c_village_east")
+	main.current.player.position = Vector2(300, 380); await _wait(1.5); await _shot("10d_village_west")
 	# 문으로 걸어가서 다시 들어가지는지
 	var v = main.current
-	v.player.position = Vector2(700, 600)
+	v.player.position = Vector2(700, 540)
 	await _wait(0.3)
 	v.player.walk_path(v.walk.find_path(v.player.position, v.BAKERY_DOOR))
 	await _wait(4.0)

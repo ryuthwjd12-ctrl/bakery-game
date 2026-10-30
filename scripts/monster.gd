@@ -18,6 +18,9 @@ var dead := false
 var _t := randf() * 10.0
 var bar := Node2D.new()
 var boss := false
+var walk_tex: Array = []  # 걷기 3장(있으면 번갈아 보여요)
+var hurt_tex: Texture2D
+var faint_tex: Texture2D
 
 
 func setup(k: String, scale_f: float) -> void:
@@ -27,12 +30,23 @@ func setup(k: String, scale_f: float) -> void:
 	boss = k == "snowman"
 	front = load("res://assets/monsters/%s.png" % ("snowman_idle" if boss else k + "_front"))
 	side = load("res://assets/monsters/%s.png" % ("snowman_walk" if boss else k + "_side"))
+	var base := "res://assets/monsters/" + k
+	if ResourceLoader.exists(base + "_w1.png"):
+		for i in 3:
+			walk_tex.append(load(base + "_w%d.png" % (i + 1)))
+		front = walk_tex[0]
+		side = walk_tex[0]
+	if ResourceLoader.exists(base + "_hurt.png"):
+		hurt_tex = load(base + "_hurt.png")
+	if ResourceLoader.exists(base + "_faint.png"):
+		faint_tex = load(base + "_faint.png")
 	sprite.texture = front
 	sprite.offset = Vector2(0, -front.get_height() / 2.0)
-	sprite.scale = Vector2(scale_f, scale_f)
+	var sc := scale_f * (110.0 / front.get_height() if not walk_tex.is_empty() else 1.0)
+	sprite.scale = Vector2(sc, sc)
 	add_child(sprite)
 	bar.draw.connect(_draw_bar)
-	bar.position = Vector2(0, -front.get_height() * scale_f - 10)
+	bar.position = Vector2(0, -front.get_height() * sc - 10)
 	bar.z_index = 50
 	add_child(bar)
 
@@ -52,6 +66,11 @@ func _process(delta: float) -> void:
 	hurt_t -= delta
 	# 맞은 직후 하얗게 번쩍 → 빨갛게 → 원래대로
 	sprite.modulate = Color(2.2, 2.2, 2.2) if hurt_t > 0.24 else (Color(1, 0.55, 0.55) if hurt_t > 0.1 else Color.WHITE)
+	# 걷기 그림을 번갈아, 맞은 직후엔 아파하는 얼굴
+	if hurt_tex and hurt_t > 0.0:
+		sprite.texture = hurt_tex
+	elif not walk_tex.is_empty():
+		sprite.texture = walk_tex[int(_t * 6.0) % 3]
 	# 통통 튀며 움직여요
 	sprite.position.y = -absf(sin(_t * (9.0 if not boss else 4.0))) * (4.0 if not boss else 6.0)
 	if knock.length() > 1.0:
@@ -77,6 +96,10 @@ func _process(delta: float) -> void:
 
 
 func _face(v: Vector2) -> void:
+	if not walk_tex.is_empty():
+		if absf(v.x) > 2.0:
+			sprite.flip_h = v.x < 0
+		return
 	if absf(v.x) > absf(v.y):
 		sprite.texture = side
 		sprite.flip_h = v.x < 0
@@ -114,8 +137,17 @@ func hit(dmg: int, from: Vector2) -> void:
 		_burst()
 		died.emit(self)
 		var tw := create_tween()
-		tw.tween_property(self, "scale", Vector2(1.25, 0.25), 0.18)
-		tw.parallel().tween_property(self, "modulate:a", 0.0, 0.35)
+		if faint_tex:
+			# 쓰러진 그림을 잠깐 보여 주고 사라져요
+			sprite.texture = faint_tex
+			sprite.modulate = Color.WHITE
+			sprite.offset = Vector2(0, -faint_tex.get_height() / 2.0)
+			bar.visible = false
+			tw.tween_interval(0.6)
+			tw.tween_property(self, "modulate:a", 0.0, 0.4)
+		else:
+			tw.tween_property(self, "scale", Vector2(1.25, 0.25), 0.18)
+			tw.parallel().tween_property(self, "modulate:a", 0.0, 0.35)
 		tw.tween_callback(queue_free)
 
 
