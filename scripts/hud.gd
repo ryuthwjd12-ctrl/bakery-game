@@ -38,12 +38,14 @@ const SHOP_LOOK := {
 		"greet": ["예쁜 그릇에 담으면 맛도 두 배예요.", "조심조심, 깨지기 쉬워요!", "새 찻잔이 들어왔어요~"]},
 	"weapon": {"bg": "shops/weapon", "keeper": "shops/keeper_weapon", "color": "#C0584A", "pitch": 0.75,
 		"greet": ["숲길은 위험해. 든든한 걸로 골라!", "이 뒤집개, 보기보다 세다고!", "비싼 건 다 이유가 있지."]},
-	"petal": {"bg": "shops/petal", "keeper": "animals/rb1_front", "happy": "animals/rb1_happy", "color": "#E8B04A", "pitch": 1.3,
+	"petal": {"bg": "shops/petal", "keeper": "shops/keeper_petal", "color": "#E8B04A", "pitch": 1.3,
 		"greet": ["꽃잎 언덕에 온 걸 환영해!", "오늘 딴 꿀이야, 정말 달아~", "말차 차 한 잔 어때?"]},
-	"orchard": {"bg": "shops/orchard", "keeper": "animals/dr1_front", "happy": "animals/dr1_happy", "color": "#C0584A", "pitch": 1.2,
+	"orchard": {"bg": "shops/orchard", "keeper": "shops/keeper_orchard", "color": "#C0584A", "pitch": 1.2,
 		"greet": ["오늘 딴 과일이야, 맛보고 가!", "복숭아가 제일 달 때야~", "과일은 상하지 않으니 넉넉히 사 가."]},
-	"beach": {"bg": "shops/beach", "keeper": "animals/ct1_front", "happy": "animals/ct1_happy", "color": "#5FB5AE", "pitch": 1.1,
+	"beach": {"bg": "shops/beach", "keeper": "shops/keeper_beach", "color": "#5FB5AE", "pitch": 1.1,
 		"greet": ["냐옹~ 바닷바람 시원하지?", "초콜릿은 배로 들어온 거야!", "조개는 팔지 않아, 내 보물이거든."]},
+	"snow": {"bg": "shops/snow", "keeper": "shops/keeper_snow", "color": "#8FA8D8", "pitch": 1.35,
+		"greet": ["어서 와, 안은 따뜻하지?", "얼음 수정 옆에 둔 우유라 아주 시원해!", "눈사람 거인 조심해, 덩치만 커."]},
 }
 
 const GUIDE := [
@@ -100,11 +102,10 @@ func _ready() -> void:
 
 	top_right = HBoxContainer.new()
 	top_right.add_theme_constant_override("separation", 8)
-	top_right.add_child(UI.button("가방 (I)", open_bag, 20))
-	top_right.add_child(UI.button("지도 (M)", open_world_map, 20))
-	top_right.add_child(UI.button("목표 (G)", open_goals, 20))
-	top_right.add_child(UI.button("레시피북 (R)", toggle_book, 20))
-	top_right.add_child(UI.button("메뉴 (Esc)", open_pause, 20))
+	for b in [["equip", "가방과 장비 (I)", open_bag], ["map", "지도 (M)", open_world_map],
+			["achieve", "목표와 친구 (G)", open_goals], ["book", "레시피북 (R)", toggle_book],
+			["settings", "메뉴 (Esc)", open_pause]]:
+		top_right.add_child(_icon_btn(b[0], b[1], b[2]))
 	root.add_child(top_right)
 	top_right.reset_size()
 	top_right.position = Vector2(1408 - 16 - top_right.size.x, 12)
@@ -240,7 +241,7 @@ func _refresh_orders() -> void:
 		orders_box.add_child(card)
 		order_bars.append([t, bar])
 	orders_panel.reset_size()
-	orders_panel.position = Vector2(1408 - 16 - orders_panel.size.x, 62)
+	orders_panel.position = Vector2(1408 - 16 - orders_panel.size.x, 88)
 
 
 func _refresh_stock() -> void:
@@ -385,6 +386,21 @@ func _center(pc: Control) -> void:
 
 
 ## 가게 창 뒤: 가게 안 그림과 주인. 처음 들어오면 인사하고, 사고팔면(창이 다시 그려지면) 웃으며 폴짝 뛰어요.
+## 동그란 그림 버튼. 마우스를 올리면 살짝 커지고 이름이 떠요.
+func _icon_btn(icon: String, tip: String, cb: Callable) -> TextureButton:
+	var b := TextureButton.new()
+	b.texture_normal = Sprites.tex("ui/btn_" + icon)
+	b.ignore_texture_size = true
+	b.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	b.custom_minimum_size = Vector2(68, 68)
+	b.pivot_offset = Vector2(34, 34)
+	b.tooltip_text = tip
+	b.pressed.connect(cb)
+	b.mouse_entered.connect(func(): b.scale = Vector2(1.08, 1.08))
+	b.mouse_exited.connect(func(): b.scale = Vector2.ONE)
+	return b
+
+
 func _shop_scene(shade: ColorRect, reopen: bool) -> void:
 	var look: Dictionary = SHOP_LOOK[shop_ctx]
 	shade.color = Color.BLACK

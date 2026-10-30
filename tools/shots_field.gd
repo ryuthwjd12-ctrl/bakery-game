@@ -61,6 +61,8 @@ func _ready():
 	main.hud.shop_ctx = "orchard"; main.hud.open_trade("과일 가판대", ["apple", "peach", "lemon", "grape", "blueberry", "strawberry"]); await _wait(0.5); await _shot("f10d_orchard_inside")
 	main.hud.close_panel()
 	main.goto_field("snowflake_village", "forest_west"); await _wait(1.0)
+	main.hud.shop_ctx = "snow"; main.hud.open_trade("얼음 수정 상점", ["cream", "milk", "butter"]); await _wait(0.5); await _shot("f11a_snow_inside")
+	main.hud.close_panel()
 	main.current.player.position = Vector2(780, 520)
 	await _wait(2.0); await _shot("f11_boss")
 	var sv = main.current

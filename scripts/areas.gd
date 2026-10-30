@@ -162,7 +162,7 @@ static func get_area(id: String) -> Dictionary:
 					[Vector2(1248, 650), Vector2(1320, 650), Vector2(1320, 700), Vector2(1248, 700)],
 					[Vector2(752, 570), Vector2(849, 575), Vector2(849, 630), Vector2(757, 625)],
 				], Rect2(675, -40, 164, 52), Vector2(757, 30),
-				{"npc": "pg1", "name": "얼음 수정 상점", "items": ["cream", "milk", "butter"], "pos": Vector2(747, 452)})
+				{"npc": "pg1", "look": "snow", "name": "얼음 수정 상점", "items": ["cream", "milk", "butter"], "pos": Vector2(747, 452)})
 			d["boss"] = {"pos": Vector2(614, 600), "trigger": 230.0}
 			return d
 	return {}
