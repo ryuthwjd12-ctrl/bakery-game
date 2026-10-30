@@ -32,8 +32,10 @@ const GATHER := {
 	"maps/forest_path": {"strawberry_patch": ["strawberry", 2, 3, Vector2(1060, 528)],
 		"berry_bush": ["raspberry", 1, 2, Vector2(895, 410)], "berry_bottom": ["strawberry", 1, 2, Vector2(790, 562)],
 		"berry_left": ["raspberry", 1, 2, Vector2(430, 548)]},
-	"maps/apple_orchard": {"apple_tree_a": ["apple", 1, 2, Vector2(410, 612)],
-		"apple_tree_b": ["apple", 1, 2, Vector2(1050, 600)], "apple_tree_c": ["apple", 1, 2, Vector2(560, 552)]},
+	"maps/apple_orchard": {"apple": ["apple", 1, 2, Vector2(716, 478)], "peach": ["peach", 1, 2, Vector2(440, 350)],
+		"lemon": ["lemon", 1, 2, Vector2(1013, 400)], "grape": ["grape", 1, 2, Vector2(164, 380)],
+		"blueberry": ["blueberry", 2, 3, Vector2(166, 455)], "strawberry": ["strawberry", 2, 3, Vector2(210, 330)]},
+	"maps/petal_hill": {"beehive": ["honey_jar", 1, 1, Vector2(491, 590)]},
 }
 ## 숲 바닥에 떨어진 재료
 const GROUND := [["g1", "walnut", Vector2(160, 330)], ["g2", "acorn", Vector2(700, 300)],
@@ -75,13 +77,14 @@ func _ready() -> void:
 
 	if area.has("shop"):
 		var npc := Animal.new()
-		npc.setup(area.shop.npc, area.hero * 1.3)
+		npc.setup(area.shop.npc, area.hero * 1.3 * Sprites.size_fix(area.shop.npc))
 		npc.position = area.shop.pos
 		world.add_child(npc)
 		# 한 마을에는 한 동물만 살아요: 가게 주인과 같은 동물 주민이 돌아다녀요.
 		GameState.visit(area_id)
+		var kinds: Array = GameState.VILLAGE_ANIMAL.get(area_id, [area.shop.npc])
 		for i in 3:
-			_spawn_resident(area.shop.npc)
+			_spawn_resident(kinds[(i + 1) % kinds.size()])
 	for e in area.exits:
 		_signpost(e)
 	for i in area.get("count", 0):
@@ -116,9 +119,8 @@ func _signpost(e: Dictionary) -> void:
 
 func _spawn_resident(kind: String) -> void:
 	var a := Animal.new()
-	a.setup(kind, area.hero * 1.2)
+	a.setup(kind, area.hero * 1.2 * Sprites.size_fix(kind))
 	a.speed = 40.0
-	a.modulate = Color(randf_range(0.93, 1.05), randf_range(0.93, 1.03), randf_range(0.92, 1.0))
 	a.position = walk.random_point()
 	world.add_child(a)
 	_wander(a)

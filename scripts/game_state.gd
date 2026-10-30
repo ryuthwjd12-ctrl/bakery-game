@@ -45,6 +45,13 @@ const ITEMS := {
 	"blueberry": {"name": "블루베리", "kind": "ing", "price": 12},
 	"lemon": {"name": "레몬", "kind": "ing", "price": 12},
 	"almond": {"name": "아몬드", "kind": "ing", "price": 14},
+	"peach": {"name": "복숭아", "kind": "ing", "price": 14},
+	"grape": {"name": "포도", "kind": "ing", "price": 14},
+	# 과수원 과일로 만드는 디저트
+	"lemon_cookie": {"name": "상큼 레몬 쿠키", "kind": "food", "price": 65, "bake": 9.0},
+	"blueberry_muffin": {"name": "블루베리 머핀", "kind": "food", "price": 70, "bake": 10.0},
+	"peach_tart": {"name": "복숭아 타르트", "kind": "food", "price": 90, "bake": 12.0},
+	"grape_roll": {"name": "포도 크림 롤", "kind": "food", "price": 110, "bake": 12.0},
 	"nut_cookie": {"name": "호두 쿠키", "kind": "food", "price": 60, "bake": 10.0},
 	"cream_bun": {"name": "꿀 크림빵", "kind": "food", "price": 70, "bake": 12.0},
 	"macaron": {"name": "말차 마카롱", "kind": "food", "price": 85, "bake": 10.0},
@@ -81,14 +88,18 @@ const RECIPES := [
 	{"id": "mushroom_cookie", "needs": ["bowl", "flour", "butter", "sugar", "acorn"]},
 	{"id": "choco_brioche", "needs": ["cake_tin", "flour", "butter", "chocolate", "milk"]},
 	{"id": "snow_cookie", "needs": ["flour", "sugar", "butter", "cream", "star_cutter"]},
+	{"id": "lemon_cookie", "needs": ["bowl", "flour", "butter", "sugar", "lemon"]},
+	{"id": "blueberry_muffin", "needs": ["bowl", "flour", "egg", "milk", "blueberry"]},
+	{"id": "peach_tart", "needs": ["rolling_pin", "flour", "butter", "sugar", "peach"]},
+	{"id": "grape_roll", "needs": ["rolling_pin", "flour", "egg", "sugar", "cream", "grape"]},
 ]
 ## 가끔 오는 부탁 손님. 사연을 듣고 스페셜 요리를 만들어 주면 큰 보상을 받아요.
 const QUESTS := [
-	{"id": "heart", "kind": "rabbit", "dish": "heart_cookie", "reward": 200, "rep": 4, "min_day": 2,
+	{"id": "heart", "kind": "rb2", "dish": "heart_cookie", "reward": 200, "rep": 4, "min_day": 2,
 		"story": "저… 좋아하는 친구가 있는데요, 오늘 마음을 전하고 싶어요.\n산딸기가 들어간 하트 쿠키를 만들어 줄 수 있어요?"},
 	{"id": "acorn", "kind": "sq4", "dish": "acorn_cookie", "reward": 220, "rep": 4, "min_day": 3,
 		"story": "겨울 준비로 도토리를 모으다 너무 지쳤어요.\n달걀을 넣은 초코 도토리 쿠키라면 힘이 날 것 같아요!"},
-	{"id": "flower", "kind": "deer", "dish": "flower_cookie", "reward": 260, "rep": 5, "min_day": 4,
+	{"id": "flower", "kind": "dr3", "dish": "flower_cookie", "reward": 260, "rep": 5, "min_day": 4,
 		"story": "내일이 할머니 생신이에요. 꽃을 좋아하시거든요.\n생크림을 올린 꽃 모양 쿠키를 선물하고 싶어요."},
 	{"id": "cinnamon", "kind": "bear", "dish": "cinnamon_roll", "reward": 300, "rep": 6, "min_day": 5,
 		"story": "겨울잠에서 막 깼더니 배가 너무 고파요…\n케이크 틀에 구운 폭신하고 달콤한 빵이 먹고 싶어요."},
@@ -100,14 +111,14 @@ const MENU_BY_LEVEL := [
 	["butter_cookie", "warm_milk", "milk_bread"],
 	["choco_cookie", "jam_cookie"],
 	["star_cookie", "raspberry_cake"],
-	["nut_cookie", "cream_bun", "mushroom_cookie"],
-	["macaron", "bear_cookie", "croissant", "choco_brioche"],
+	["nut_cookie", "cream_bun", "mushroom_cookie", "lemon_cookie", "blueberry_muffin"],
+	["macaron", "bear_cookie", "croissant", "choco_brioche", "peach_tart", "grape_roll"],
 ]
 const LEVEL_REP := [0, 8, 20, 40, 70]
 
 const STORAGE := {
 	"cabinet": {"name": "그릇장", "items": ["bowl", "mug", "cake_plate", "cake_tin", "star_cutter", "rolling_pin", "piping_bag"]},
-	"fridge": {"name": "냉장고", "items": ["butter", "egg", "milk", "cream", "apple"]},
+	"fridge": {"name": "냉장고", "items": ["butter", "egg", "milk", "cream", "apple", "peach", "lemon", "grape", "blueberry"]},
 	"freezer": {"name": "냉동고", "items": ["raspberry", "strawberry"]},
 	"pantry": {"name": "찬장", "items": ["flour", "sugar", "chocolate", "walnut", "acorn", "matcha", "honey_jar"]},
 }
@@ -164,9 +175,10 @@ const WEAPONS := {
 	"walnut_hammer": {"name": "호두 깨기 망치", "type": "melee", "power": 36, "price": 1500, "icon": "items/w_walnut_hammer"},
 	"candy_cane": {"name": "사탕 지팡이", "type": "magic", "power": 44, "mp": 7, "price": 2400, "icon": "items/w_candy_cane"},
 }
-## 한 마을에는 한 동물만 살아요.
-const VILLAGE_ANIMAL := {"village": "squirrel", "petal_hill": "rabbit", "seashell_beach": "cat",
-	"apple_orchard": "bear", "snowflake_village": "deer"}
+## 한 마을에는 한 동물만 살아요(주민 그림 이름들).
+const VILLAGE_ANIMAL := {"village": ["sq1", "sq2", "sq3", "sq4", "sq5", "sq6"],
+	"petal_hill": ["rb1", "rb2", "rb3", "rb4"], "seashell_beach": ["cat"],
+	"apple_orchard": ["dr1", "dr2", "dr3", "dr4"], "snowflake_village": ["pg1", "pg2", "pg3", "pg4"]}
 const ANNEX_MAX := 4
 const DECOR_MAX := 2
 
@@ -423,9 +435,9 @@ func customer_kind() -> String:
 	var guests: Array = []
 	for v in visited:
 		if VILLAGE_ANIMAL.has(v):
-			guests.append(VILLAGE_ANIMAL[v])
+			guests.append_array(VILLAGE_ANIMAL[v])
 	if guests.is_empty() or randf() < 0.6:
-		return "sq%d" % randi_range(1, 6)
+		return VILLAGE_ANIMAL.village.pick_random()
 	return guests.pick_random()
 
 

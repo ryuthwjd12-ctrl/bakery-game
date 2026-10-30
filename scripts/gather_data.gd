@@ -16,8 +16,11 @@ const SPOTS := {
 		"berry_left": Vector2(342, 398),
 	},
 	"maps/apple_orchard": {
-		"apple_tree_a": Vector2(415, 580),
-		"apple_tree_b": Vector2(990, 585),
-		"apple_tree_c": Vector2(555, 515),
+		"apple": Vector2(660, 490),
+		"peach": Vector2(418, 210),
+		"lemon": Vector2(979, 240),
+		"grape": Vector2(0, 285),
+		"blueberry": Vector2(0, 405),
+		"strawberry": Vector2(52, 225),
 	},
 }

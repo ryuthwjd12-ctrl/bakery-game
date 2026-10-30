@@ -40,34 +40,12 @@ static func forest(name: String, to: String, monsters: Array, tint: Color, entry
 	}
 
 
-## 꽃잎 언덕·사과 과수원·눈꽃 마을은 같은 모양의 계단식 마을이에요:
-## 가운데 광장(계단 둘), 왼쪽 아래와 오른쪽 아래로 내려가는 길. 위 언덕 집들은 절벽 위라 못 가요.
-const TERRACE_AREA := [Vector2(0, 700), Vector2(150, 650), Vector2(330, 595), Vector2(470, 555), Vector2(525, 540),
-	Vector2(550, 500), Vector2(590, 470), Vector2(600, 430), Vector2(640, 405), Vector2(700, 365), Vector2(760, 355),
-	Vector2(830, 395), Vector2(905, 418), Vector2(990, 420), Vector2(1030, 445), Vector2(985, 485), Vector2(960, 500),
-	Vector2(1000, 540), Vector2(1150, 590), Vector2(1300, 640), Vector2(1408, 680), Vector2(1408, 768), Vector2(1330, 768),
-	Vector2(1150, 670), Vector2(1010, 600), Vector2(965, 565), Vector2(930, 545), Vector2(600, 545), Vector2(565, 565),
-	Vector2(420, 640), Vector2(200, 710), Vector2(80, 768), Vector2(0, 768)]
-## 눈꽃 마을은 아래 눈밭도 걸을 수 있어요(시냇물만 빼고).
-const SNOW_AREA := [Vector2(0, 690), Vector2(150, 650), Vector2(330, 595), Vector2(470, 555), Vector2(525, 540),
-	Vector2(550, 500), Vector2(590, 470), Vector2(600, 430), Vector2(640, 405), Vector2(700, 365), Vector2(760, 355),
-	Vector2(830, 395), Vector2(905, 418), Vector2(990, 420), Vector2(1030, 445), Vector2(985, 485), Vector2(960, 500),
-	Vector2(1000, 540), Vector2(1150, 590), Vector2(1300, 640), Vector2(1408, 680), Vector2(1408, 768), Vector2(0, 768)]
-const STALLS := [
-	[Vector2(645, 445), Vector2(700, 435), Vector2(708, 500), Vector2(650, 505)],
-	[Vector2(710, 470), Vector2(775, 465), Vector2(775, 540), Vector2(712, 540)],
-	[Vector2(740, 400), Vector2(800, 400), Vector2(802, 470), Vector2(742, 470)],
-	[Vector2(800, 428), Vector2(865, 428), Vector2(865, 505), Vector2(802, 505)],
-]
-const TERRACE_EXIT := [{"rect": Rect2(-40, 690, 52, 90), "to": "", "label": "숲길"}]
-
-
-static func terrace(name: String, bg: String, forest_id: String, area: Array, blocks: Array, shop: Dictionary) -> Dictionary:
-	var exits := TERRACE_EXIT.duplicate(true)
-	exits[0].to = forest_id
+## 다른 마을: 마을마다 모양이 달라요. 숲으로 이어지는 길 하나로 들어오고 나가요.
+static func town(name: String, bg: String, forest_id: String, area: Array, blocks: Array, exit: Rect2, entry: Vector2, shop: Dictionary) -> Dictionary:
 	return {
 		"name": name, "bg": bg, "size": Vector2(1408, 768), "zoom": 1.7, "hero": 0.28,
-		"area": area, "blocks": blocks, "exits": exits, "entries": {forest_id: Vector2(40, 728)}, "shop": shop,
+		"area": area, "blocks": blocks, "exits": [{"rect": exit, "to": forest_id, "label": "숲길"}],
+		"entries": {forest_id: entry}, "shop": shop,
 	}
 
 
@@ -82,48 +60,111 @@ static func get_area(id: String) -> Dictionary:
 		"forest_west":
 			return forest("서쪽 눈바람 숲", "snowflake_village", ["sheep", "dragon", "mushroom"], Color(0.9, 0.95, 1.06), "west")
 		"petal_hill":
-			return terrace("꽃잎 언덕", "maps/petal_hill", "forest_north", TERRACE_AREA, [
-				[Vector2(700, 435), Vector2(770, 435), Vector2(770, 475), Vector2(700, 475)],
-				[Vector2(655, 480), Vector2(725, 480), Vector2(725, 525), Vector2(655, 525)],
-				[Vector2(755, 465), Vector2(840, 465), Vector2(840, 520), Vector2(755, 520)],
-			], {"pos": Vector2(880, 432), "npc": "rabbit", "name": "꽃잎 언덕 꿀가게", "items": ["honey_jar", "matcha", "milk"]})
-		"apple_orchard":
-			return terrace("사과 과수원", "maps/apple_orchard", "forest_south", TERRACE_AREA, STALLS,
-				{"pos": Vector2(880, 432), "npc": "bear", "name": "과수원 가게", "items": ["apple", "walnut", "acorn"]})
-		"snowflake_village":
-			var d := terrace("눈꽃 마을", "maps/snowflake_village", "forest_west", SNOW_AREA, STALLS + [
-				# 시냇물(다리 아래)
-				[Vector2(775, 650), Vector2(805, 650), Vector2(745, 705), Vector2(660, 768), Vector2(600, 768), Vector2(700, 690)],
-			], {"pos": Vector2(880, 432), "npc": "deer", "name": "눈꽃 상점", "items": ["cream", "milk", "butter"]})
-			d["boss"] = {"pos": Vector2(1120, 700), "trigger": 230.0}
-			return d
+			return town("꽃잎 언덕", "maps/petal_hill", "forest_north", [Vector2(0, 0), Vector2(1408, 0), Vector2(1408, 768), Vector2(0, 768)], [
+					[Vector2(138, 170), Vector2(205, 95), Vector2(307, 70), Vector2(379, 95), Vector2(379, 190), Vector2(307, 215), Vector2(164, 240)],
+					[Vector2(1090, 120), Vector2(1177, 105), Vector2(1269, 110), Vector2(1335, 215), Vector2(1310, 285), Vector2(1136, 260), Vector2(1090, 220)],
+					[Vector2(72, 610), Vector2(143, 530), Vector2(246, 520), Vector2(297, 560), Vector2(297, 630), Vector2(205, 680), Vector2(82, 690)],
+					[Vector2(1131, 480), Vector2(1218, 465), Vector2(1330, 580), Vector2(1330, 640), Vector2(1207, 625), Vector2(1136, 580)],
+					[Vector2(0, 190), Vector2(153, 200), Vector2(205, 330), Vector2(246, 400), Vector2(327, 450), Vector2(481, 490), Vector2(460, 580), Vector2(379, 575), Vector2(256, 470), Vector2(153, 420), Vector2(0, 430)],
+					[Vector2(379, 10), Vector2(553, 10), Vector2(553, 140), Vector2(430, 150), Vector2(379, 60)],
+					[Vector2(936, 30), Vector2(1085, 30), Vector2(1074, 150), Vector2(941, 150)],
+					[Vector2(404, 250), Vector2(532, 200), Vector2(686, 230), Vector2(686, 330), Vector2(573, 400), Vector2(409, 355)],
+					[Vector2(706, 190), Vector2(952, 270), Vector2(987, 450), Vector2(911, 500), Vector2(716, 410), Vector2(696, 380)],
+					[Vector2(532, 500), Vector2(614, 480), Vector2(737, 540), Vector2(737, 640), Vector2(634, 670), Vector2(537, 610)],
+					[Vector2(952, 485), Vector2(1054, 490), Vector2(1054, 580), Vector2(957, 545)],
+					[Vector2(1013, 420), Vector2(1085, 420), Vector2(1131, 535), Vector2(1131, 600), Vector2(1059, 600), Vector2(1013, 490)],
+					[Vector2(798, 700), Vector2(900, 650), Vector2(1115, 665), Vector2(1115, 768), Vector2(778, 768)],
+					[Vector2(0, 640), Vector2(72, 640), Vector2(235, 700), Vector2(235, 768), Vector2(0, 768)],
+					[Vector2(1279, 300), Vector2(1408, 300), Vector2(1408, 360), Vector2(1279, 360)],
+					[Vector2(1289, 650), Vector2(1408, 650), Vector2(1408, 740), Vector2(1289, 740)],
+					[Vector2(307, 535), Vector2(343, 535), Vector2(343, 630), Vector2(307, 630)],
+				], Rect2(532, 756, 133, 60), Vector2(604, 735),
+				{"npc": "rb1", "name": "꽃잎 언덕 꿀가게", "items": ["honey_jar", "matcha", "milk"], "pos": Vector2(721, 440)})
 		"seashell_beach":
-			return {
-				"name": "조개 해변", "bg": "maps/seashell_beach", "size": Vector2(1408, 768), "zoom": 1.7, "hero": 0.28,
-				"area": [Vector2(0, 305), Vector2(170, 268), Vector2(420, 268), Vector2(640, 250), Vector2(760, 250),
-					Vector2(1000, 240), Vector2(1180, 285), Vector2(1260, 330), Vector2(1300, 600), Vector2(1408, 630),
-					Vector2(1408, 768), Vector2(1080, 768), Vector2(1000, 742), Vector2(800, 702), Vector2(600, 642),
-					Vector2(400, 562), Vector2(200, 452), Vector2(0, 418)],
-				"blocks": [
-					[Vector2(545, 350), Vector2(640, 280), Vector2(725, 300), Vector2(722, 390), Vector2(640, 395), Vector2(600, 445), Vector2(548, 440)],
-					[Vector2(460, 320), Vector2(560, 320), Vector2(560, 390), Vector2(460, 390)],
-					[Vector2(752, 290), Vector2(815, 235), Vector2(880, 290), Vector2(870, 385), Vector2(752, 372)],
-					[Vector2(865, 330), Vector2(930, 290), Vector2(1020, 360), Vector2(1010, 465), Vector2(880, 460)],
-					[Vector2(1030, 410), Vector2(1060, 410), Vector2(1060, 480), Vector2(1030, 480)],
-					[Vector2(995, 462), Vector2(1070, 462), Vector2(1070, 530), Vector2(995, 530)],
-					[Vector2(1100, 480), Vector2(1190, 430), Vector2(1255, 460), Vector2(1280, 560), Vector2(1110, 555)],
-					[Vector2(1050, 440), Vector2(1100, 440), Vector2(1100, 500), Vector2(1050, 500)],
-					[Vector2(1015, 250), Vector2(1100, 200), Vector2(1170, 250), Vector2(1165, 330), Vector2(1020, 330)],
-					[Vector2(1190, 270), Vector2(1255, 270), Vector2(1255, 312), Vector2(1190, 312)],
-					[Vector2(680, 470), Vector2(800, 440), Vector2(845, 500), Vector2(800, 525), Vector2(680, 500)],
-					[Vector2(775, 580), Vector2(850, 560), Vector2(915, 610), Vector2(900, 640), Vector2(800, 640)],
-					[Vector2(195, 385), Vector2(290, 385), Vector2(290, 440), Vector2(195, 440)],
-					[Vector2(1055, 660), Vector2(1165, 660), Vector2(1165, 720), Vector2(1055, 720)],
-				],
-				"exits": [{"rect": Rect2(-40, 300, 52, 110), "to": "forest_east", "label": "숲길"}],
-				"entries": {"forest_east": Vector2(40, 345)},
-				"shop": {"pos": Vector2(800, 405), "npc": "cat", "name": "바닷가 생선 가게", "items": ["chocolate", "cream", "matcha"]},
-			}
+			return town("조개 해변", "maps/seashell_beach", "forest_east", [Vector2(0, 0), Vector2(1408, 0), Vector2(1408, 285), Vector2(1279, 330), Vector2(1126, 430), Vector2(1003, 520), Vector2(890, 560), Vector2(778, 620), Vector2(665, 690), Vector2(573, 768), Vector2(0, 768)], [
+					[Vector2(128, 90), Vector2(184, 55), Vector2(287, 60), Vector2(348, 110), Vector2(338, 200), Vector2(266, 225), Vector2(153, 215), Vector2(128, 170)],
+					[Vector2(20, 260), Vector2(72, 200), Vector2(153, 230), Vector2(205, 300), Vector2(200, 395), Vector2(113, 410), Vector2(31, 395)],
+					[Vector2(0, 0), Vector2(123, 0), Vector2(113, 90), Vector2(51, 180), Vector2(0, 200)],
+					[Vector2(409, 30), Vector2(471, 0), Vector2(542, 40), Vector2(537, 130), Vector2(481, 150), Vector2(414, 120)],
+					[Vector2(358, 0), Vector2(420, 0), Vector2(409, 150), Vector2(373, 150)],
+					[Vector2(947, 40), Vector2(1013, 0), Vector2(1095, 40), Vector2(1090, 140), Vector2(1013, 175), Vector2(952, 140)],
+					[Vector2(1085, 0), Vector2(1408, 0), Vector2(1408, 130), Vector2(1187, 140), Vector2(1105, 110)],
+					[Vector2(1161, 110), Vector2(1228, 50), Vector2(1320, 90), Vector2(1371, 190), Vector2(1310, 250), Vector2(1177, 250), Vector2(1161, 200)],
+					[Vector2(711, 270), Vector2(778, 215), Vector2(947, 280), Vector2(993, 410), Vector2(911, 465), Vector2(798, 455), Vector2(721, 385)],
+					[Vector2(655, 300), Vector2(686, 300), Vector2(686, 380), Vector2(655, 380)],
+					[Vector2(762, 150), Vector2(798, 150), Vector2(798, 230), Vector2(762, 230)],
+					[Vector2(952, 330), Vector2(982, 330), Vector2(982, 400), Vector2(952, 400)],
+					[Vector2(256, 510), Vector2(327, 415), Vector2(409, 450), Vector2(440, 560), Vector2(409, 600), Vector2(266, 580)],
+					[Vector2(51, 560), Vector2(133, 495), Vector2(225, 560), Vector2(251, 650), Vector2(205, 700), Vector2(72, 680)],
+					[Vector2(0, 400), Vector2(113, 410), Vector2(113, 520), Vector2(41, 560), Vector2(0, 560)],
+					[Vector2(0, 600), Vector2(102, 620), Vector2(82, 768), Vector2(0, 768)],
+					[Vector2(205, 480), Vector2(235, 480), Vector2(235, 590), Vector2(205, 590)],
+					[Vector2(532, 590), Vector2(614, 580), Vector2(655, 640), Vector2(573, 665), Vector2(532, 640)],
+					[Vector2(1064, 345), Vector2(1167, 345), Vector2(1167, 440), Vector2(1064, 440)],
+					[Vector2(1243, 270), Vector2(1300, 270), Vector2(1300, 312), Vector2(1243, 312)],
+					[Vector2(327, 695), Vector2(450, 695), Vector2(450, 768), Vector2(327, 768)],
+				], Rect2(655, -40, 215, 52), Vector2(762, 30),
+				{"npc": "cat", "name": "바닷가 생선 가게", "items": ["chocolate", "cream", "matcha"], "pos": Vector2(737, 445)})
+		"apple_orchard":
+			return town("과일 과수원", "maps/apple_orchard", "forest_south", [Vector2(0, 0), Vector2(1408, 0), Vector2(1408, 768), Vector2(0, 768)], [
+					[Vector2(0, 0), Vector2(604, 0), Vector2(583, 95), Vector2(481, 145), Vector2(389, 190), Vector2(338, 150), Vector2(133, 100), Vector2(61, 150), Vector2(0, 150)],
+					[Vector2(819, 0), Vector2(1408, 0), Vector2(1408, 300), Vector2(1320, 300), Vector2(1146, 240), Vector2(1136, 185), Vector2(1023, 185), Vector2(952, 140), Vector2(900, 110), Vector2(839, 95)],
+					[Vector2(138, 120), Vector2(225, 65), Vector2(338, 130), Vector2(338, 240), Vector2(235, 260), Vector2(143, 215)],
+					[Vector2(409, 250), Vector2(532, 160), Vector2(655, 115), Vector2(778, 95), Vector2(875, 140), Vector2(880, 200), Vector2(778, 230), Vector2(716, 250), Vector2(675, 355), Vector2(573, 400), Vector2(481, 355), Vector2(409, 310)],
+					[Vector2(716, 260), Vector2(778, 205), Vector2(947, 280), Vector2(993, 420), Vector2(941, 470), Vector2(829, 480), Vector2(665, 385)],
+					[Vector2(880, 230), Vector2(952, 190), Vector2(1054, 250), Vector2(1054, 385), Vector2(972, 385), Vector2(900, 330)],
+					[Vector2(1161, 470), Vector2(1300, 355), Vector2(1408, 370), Vector2(1408, 640), Vector2(1320, 640), Vector2(1167, 600)],
+					[Vector2(1330, 580), Vector2(1408, 580), Vector2(1408, 660), Vector2(1330, 660)],
+					[Vector2(1253, 650), Vector2(1320, 650), Vector2(1320, 700), Vector2(1253, 700)],
+					[Vector2(527, 768), Vector2(624, 768), Vector2(860, 628), Vector2(827, 598)],
+					[Vector2(962, 545), Vector2(993, 575), Vector2(1408, 380), Vector2(1408, 300)],
+					[Vector2(1064, 345), Vector2(1161, 345), Vector2(1161, 440), Vector2(1064, 440)],
+					[Vector2(1187, 315), Vector2(1243, 315), Vector2(1243, 355), Vector2(1187, 355)],
+					[Vector2(1090, 180), Vector2(1151, 180), Vector2(1151, 230), Vector2(1090, 230)],
+					[Vector2(51, 225), Vector2(189, 225), Vector2(189, 300), Vector2(51, 300)],
+					[Vector2(179, 265), Vector2(240, 265), Vector2(240, 310), Vector2(179, 310)],
+					[Vector2(0, 285), Vector2(151, 285), Vector2(151, 500), Vector2(0, 500)],
+					[Vector2(189, 440), Vector2(240, 440), Vector2(240, 515), Vector2(189, 515)],
+					[Vector2(41, 110), Vector2(128, 110), Vector2(128, 230), Vector2(41, 230)],
+					[Vector2(256, 470), Vector2(338, 410), Vector2(445, 490), Vector2(440, 580), Vector2(338, 600), Vector2(261, 560)],
+					[Vector2(256, 580), Vector2(327, 580), Vector2(327, 630), Vector2(256, 630)],
+					[Vector2(46, 550), Vector2(133, 480), Vector2(246, 560), Vector2(240, 660), Vector2(164, 680), Vector2(51, 640)],
+					[Vector2(0, 620), Vector2(82, 620), Vector2(174, 700), Vector2(215, 768), Vector2(0, 768)],
+					[Vector2(307, 768), Vector2(389, 660), Vector2(512, 600), Vector2(573, 520), Vector2(665, 495), Vector2(747, 520), Vector2(737, 640), Vector2(634, 700), Vector2(573, 768)],
+					[Vector2(578, 470), Vector2(634, 470), Vector2(634, 530), Vector2(578, 530)],
+					[Vector2(655, 768), Vector2(778, 690), Vector2(921, 640), Vector2(1115, 700), Vector2(1126, 768)],
+					[Vector2(1330, 660), Vector2(1408, 640), Vector2(1408, 768), Vector2(1330, 768)],
+				], Rect2(614, -40, 205, 52), Vector2(716, 30),
+				{"npc": "deer", "name": "과일 가판대", "items": ["apple", "peach", "lemon", "grape", "blueberry", "strawberry"], "pos": Vector2(706, 432)})
+		"snowflake_village":
+			var d := town("눈꽃 마을", "maps/snowflake_village", "forest_west", [Vector2(0, 0), Vector2(1408, 0), Vector2(1408, 768), Vector2(0, 768)], [
+					[Vector2(67, 100), Vector2(123, 75), Vector2(338, 75), Vector2(394, 130), Vector2(379, 215), Vector2(307, 245), Vector2(153, 250), Vector2(72, 210)],
+					[Vector2(0, 0), Vector2(573, 0), Vector2(573, 60), Vector2(481, 90), Vector2(307, 40), Vector2(205, 50), Vector2(102, 100), Vector2(0, 150)],
+					[Vector2(0, 150), Vector2(82, 180), Vector2(82, 300), Vector2(0, 300)],
+					[Vector2(0, 300), Vector2(153, 340), Vector2(153, 450), Vector2(61, 500), Vector2(0, 500)],
+					[Vector2(169, 410), Vector2(261, 410), Vector2(261, 510), Vector2(169, 510)],
+					[Vector2(51, 540), Vector2(143, 485), Vector2(235, 520), Vector2(246, 640), Vector2(164, 670), Vector2(61, 640)],
+					[Vector2(261, 450), Vector2(338, 415), Vector2(430, 450), Vector2(440, 560), Vector2(379, 590), Vector2(266, 560)],
+					[Vector2(0, 580), Vector2(51, 600), Vector2(153, 660), Vector2(266, 700), Vector2(409, 700), Vector2(460, 768), Vector2(0, 768)],
+					[Vector2(414, 240), Vector2(481, 200), Vector2(573, 150), Vector2(665, 110), Vector2(778, 90), Vector2(870, 130), Vector2(890, 210), Vector2(819, 230), Vector2(757, 220), Vector2(706, 260), Vector2(655, 330), Vector2(573, 400), Vector2(481, 380), Vector2(420, 330)],
+					[Vector2(716, 260), Vector2(762, 205), Vector2(911, 240), Vector2(957, 300), Vector2(957, 430), Vector2(849, 465), Vector2(778, 440), Vector2(706, 390)],
+					[Vector2(962, 270), Vector2(1023, 230), Vector2(1059, 300), Vector2(1023, 390), Vector2(972, 380)],
+					[Vector2(967, 70), Vector2(1033, 30), Vector2(1126, 60), Vector2(1131, 160), Vector2(1064, 175), Vector2(982, 160)],
+					[Vector2(1167, 140), Vector2(1248, 95), Vector2(1335, 120), Vector2(1351, 240), Vector2(1289, 265), Vector2(1177, 250)],
+					[Vector2(1105, 0), Vector2(1408, 0), Vector2(1408, 240), Vector2(1351, 100), Vector2(1279, 60), Vector2(1136, 60)],
+					[Vector2(849, 0), Vector2(982, 0), Vector2(972, 100), Vector2(860, 100)],
+					[Vector2(1269, 240), Vector2(1408, 230), Vector2(1408, 300), Vector2(1274, 335)],
+					[Vector2(1187, 310), Vector2(1243, 310), Vector2(1243, 355), Vector2(1187, 355)],
+					[Vector2(1182, 500), Vector2(1269, 435), Vector2(1361, 460), Vector2(1371, 590), Vector2(1279, 615), Vector2(1187, 600)],
+					[Vector2(1141, 520), Vector2(1187, 520), Vector2(1187, 560), Vector2(1141, 560)],
+					[Vector2(1351, 350), Vector2(1408, 330), Vector2(1408, 768), Vector2(1330, 768), Vector2(1361, 600)],
+					[Vector2(696, 768), Vector2(716, 700), Vector2(778, 650), Vector2(880, 620), Vector2(1003, 650), Vector2(1054, 700), Vector2(1126, 768)],
+					[Vector2(1248, 650), Vector2(1320, 650), Vector2(1320, 700), Vector2(1248, 700)],
+					[Vector2(752, 570), Vector2(849, 575), Vector2(849, 630), Vector2(757, 625)],
+				], Rect2(675, -40, 164, 52), Vector2(757, 30),
+				{"npc": "pg1", "name": "얼음 수정 상점", "items": ["cream", "milk", "butter"], "pos": Vector2(747, 452)})
+			d["boss"] = {"pos": Vector2(614, 600), "trigger": 230.0}
+			return d
 	return {}
 
 
@@ -147,7 +188,7 @@ const WORLD := [
 	["눈꽃 마을", Vector2(140, 335), "snowflake_village"],
 	["도토리 숲 마을", Vector2(430, 300), "village"],
 	["조개 해변", Vector2(735, 325), "seashell_beach"],
-	["사과 과수원", Vector2(440, 540), "apple_orchard"],
+	["과일 과수원", Vector2(440, 540), "apple_orchard"],
 	["꿀벌 들판 (준비 중)", Vector2(110, 125), ""],
 	["바다 동굴 (준비 중)", Vector2(760, 115), ""],
 	["눈 덮인 산 (준비 중)", Vector2(130, 525), ""],

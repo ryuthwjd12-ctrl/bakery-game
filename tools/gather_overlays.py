@@ -22,8 +22,8 @@ SPOTS = {
         'berry_bottom': (692, 350, 888, 556), 'berry_left': (342, 398, 526, 536),
     },
     'maps/apple_orchard': {
-        'apple_tree_a': (415, 580, 510, 692), 'apple_tree_b': (990, 585, 1080, 692),
-        'apple_tree_c': (555, 515, 645, 602),
+        'apple': (660, 490, 775, 605), 'peach': (418, 210, 524, 322), 'lemon': (979, 240, 1085, 332),
+        'grape': (0, 285, 158, 422), 'blueberry': (0, 405, 116, 487), 'strawberry': (52, 225, 199, 302),
     },
 }
 lines = ['class_name GatherData', 'extends RefCounted', '## tools/gather_overlays.py가 만든 파일이에요. 직접 고치지 말아요.',
@@ -35,6 +35,9 @@ for mp, spots in SPOTS.items():
         sub = a[y0:y1, x0:x1].copy()
         r, g, b = sub[..., 0], sub[..., 1], sub[..., 2]
         fruit = ((r > 120) & (r - g > 45) & (r - b > 15)) | ((b > 80) & (r > 80) & (b - g > 25) & (r - g > 10))
+        if mp == 'maps/apple_orchard':
+            fruit |= ((r > 200) & (g > 170) & (b < 120) & (r - b > 110))  # 레몬
+            fruit |= ((b > 110) & (b - r > 35) & (b - g > 25))  # 블루베리
         fruit = ndimage.binary_opening(fruit, iterations=1)
         fruit = ndimage.binary_fill_holes(ndimage.binary_closing(fruit, iterations=2))
         fruit = ndimage.binary_dilation(fruit, iterations=5)  # 열매 테두리·꼭지까지
