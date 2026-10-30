@@ -18,12 +18,12 @@ SPOTS = {
         'bush_left': (5, 232, 107, 336), 'bed_west': (290, 408, 408, 496), 'bed_plaza': (768, 503, 890, 592),
     },
     'maps/forest_path': {
-        'strawberry_patch': (255, 385, 495, 548), 'berry_bush': (505, 615, 665, 740),
-        'berry_bottom': (390, 755, 640, 860),
+        'strawberry_patch': (995, 345, 1205, 515), 'berry_bush': (828, 272, 958, 400),
+        'berry_bottom': (692, 350, 888, 556), 'berry_left': (342, 398, 526, 536),
     },
     'maps/apple_orchard': {
-        'apple_tree_a': (110, 175, 240, 330), 'apple_tree_b': (285, 385, 425, 530),
-        'apple_tree_c': (115, 785, 260, 930),
+        'apple_tree_a': (415, 580, 510, 692), 'apple_tree_b': (990, 585, 1080, 692),
+        'apple_tree_c': (555, 515, 645, 602),
     },
 }
 lines = ['class_name GatherData', 'extends RefCounted', '## tools/gather_overlays.py가 만든 파일이에요. 직접 고치지 말아요.',

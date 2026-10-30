@@ -10,13 +10,14 @@ const SPOTS := {
 		"bed_plaza": Vector2(768, 503),
 	},
 	"maps/forest_path": {
-		"strawberry_patch": Vector2(255, 385),
-		"berry_bush": Vector2(505, 615),
-		"berry_bottom": Vector2(390, 755),
+		"strawberry_patch": Vector2(995, 345),
+		"berry_bush": Vector2(828, 272),
+		"berry_bottom": Vector2(692, 350),
+		"berry_left": Vector2(342, 398),
 	},
 	"maps/apple_orchard": {
-		"apple_tree_a": Vector2(110, 175),
-		"apple_tree_b": Vector2(285, 385),
-		"apple_tree_c": Vector2(115, 785),
+		"apple_tree_a": Vector2(415, 580),
+		"apple_tree_b": Vector2(990, 585),
+		"apple_tree_c": Vector2(555, 515),
 	},
 }

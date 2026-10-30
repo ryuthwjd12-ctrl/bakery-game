@@ -29,14 +29,15 @@ var overlays := {}
 var ground := {}
 ## 채집할 수 있는 곳: 지도 그림 → {덮개 id: [재료, 개수 최소, 최대, 서는 곳]}
 const GATHER := {
-	"maps/forest_path": {"strawberry_patch": ["strawberry", 2, 3, Vector2(375, 560)],
-		"berry_bush": ["raspberry", 1, 2, Vector2(585, 605)], "berry_bottom": ["raspberry", 2, 3, Vector2(515, 735)]},
-	"maps/apple_orchard": {"apple_tree_a": ["apple", 1, 2, Vector2(175, 345)],
-		"apple_tree_b": ["apple", 1, 2, Vector2(355, 545)], "apple_tree_c": ["apple", 1, 2, Vector2(190, 945)]},
+	"maps/forest_path": {"strawberry_patch": ["strawberry", 2, 3, Vector2(1060, 528)],
+		"berry_bush": ["raspberry", 1, 2, Vector2(895, 410)], "berry_bottom": ["strawberry", 1, 2, Vector2(790, 562)],
+		"berry_left": ["raspberry", 1, 2, Vector2(430, 548)]},
+	"maps/apple_orchard": {"apple_tree_a": ["apple", 1, 2, Vector2(410, 612)],
+		"apple_tree_b": ["apple", 1, 2, Vector2(1050, 600)], "apple_tree_c": ["apple", 1, 2, Vector2(560, 552)]},
 }
 ## 숲 바닥에 떨어진 재료
-const GROUND := [["g1", "walnut", Vector2(700, 520)], ["g2", "acorn", Vector2(300, 600)],
-	["g3", "acorn", Vector2(1120, 250)], ["g4", "walnut", Vector2(860, 610)]]
+const GROUND := [["g1", "walnut", Vector2(160, 330)], ["g2", "acorn", Vector2(700, 300)],
+	["g3", "acorn", Vector2(1000, 330)], ["g4", "walnut", Vector2(620, 470)]]
 
 
 func _ready() -> void:
