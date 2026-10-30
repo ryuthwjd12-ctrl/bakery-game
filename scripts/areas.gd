@@ -79,7 +79,7 @@ static func get_area(id: String) -> Dictionary:
 					[Vector2(1289, 650), Vector2(1408, 650), Vector2(1408, 740), Vector2(1289, 740)],
 					[Vector2(307, 535), Vector2(343, 535), Vector2(343, 630), Vector2(307, 630)],
 				], Rect2(532, 756, 133, 60), Vector2(604, 735),
-				{"npc": "rb1", "name": "꽃잎 언덕 꿀가게", "items": ["honey_jar", "matcha", "milk"], "pos": Vector2(721, 440)})
+				{"npc": "rb1", "look": "petal", "name": "꽃잎 언덕 꿀가게", "items": ["honey_jar", "matcha", "milk"], "pos": Vector2(721, 440)})
 		"seashell_beach":
 			return town("조개 해변", "maps/seashell_beach", "forest_east", [Vector2(0, 0), Vector2(1408, 0), Vector2(1408, 285), Vector2(1279, 330), Vector2(1126, 430), Vector2(1003, 520), Vector2(890, 560), Vector2(778, 620), Vector2(665, 690), Vector2(573, 768), Vector2(0, 768)], [
 					[Vector2(128, 90), Vector2(184, 55), Vector2(287, 60), Vector2(348, 110), Vector2(338, 200), Vector2(266, 225), Vector2(153, 215), Vector2(128, 170)],
@@ -104,7 +104,7 @@ static func get_area(id: String) -> Dictionary:
 					[Vector2(1243, 270), Vector2(1300, 270), Vector2(1300, 312), Vector2(1243, 312)],
 					[Vector2(327, 695), Vector2(450, 695), Vector2(450, 768), Vector2(327, 768)],
 				], Rect2(655, -40, 215, 52), Vector2(762, 30),
-				{"npc": "cat", "name": "바닷가 생선 가게", "items": ["chocolate", "cream", "matcha"], "pos": Vector2(737, 445)})
+				{"npc": "ct1", "look": "beach", "name": "바닷가 생선 가게", "items": ["chocolate", "cream", "matcha"], "pos": Vector2(737, 445)})
 		"apple_orchard":
 			return town("과일 과수원", "maps/apple_orchard", "forest_south", [Vector2(0, 0), Vector2(1408, 0), Vector2(1408, 768), Vector2(0, 768)], [
 					[Vector2(0, 0), Vector2(604, 0), Vector2(583, 95), Vector2(481, 145), Vector2(389, 190), Vector2(338, 150), Vector2(133, 100), Vector2(61, 150), Vector2(0, 150)],

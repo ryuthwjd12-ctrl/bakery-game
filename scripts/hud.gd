@@ -38,6 +38,10 @@ const SHOP_LOOK := {
 		"greet": ["예쁜 그릇에 담으면 맛도 두 배예요.", "조심조심, 깨지기 쉬워요!", "새 찻잔이 들어왔어요~"]},
 	"weapon": {"bg": "shops/weapon", "keeper": "shops/keeper_weapon", "color": "#C0584A", "pitch": 0.75,
 		"greet": ["숲길은 위험해. 든든한 걸로 골라!", "이 뒤집개, 보기보다 세다고!", "비싼 건 다 이유가 있지."]},
+	"petal": {"bg": "shops/petal", "keeper": "animals/rb1_front", "happy": "animals/rb1_happy", "color": "#E8B04A", "pitch": 1.3,
+		"greet": ["꽃잎 언덕에 온 걸 환영해!", "오늘 딴 꿀이야, 정말 달아~", "말차 차 한 잔 어때?"]},
+	"beach": {"bg": "shops/beach", "keeper": "animals/ct1_front", "happy": "animals/ct1_happy", "color": "#5FB5AE", "pitch": 1.1,
+		"greet": ["냐옹~ 바닷바람 시원하지?", "초콜릿은 배로 들어온 거야!", "조개는 팔지 않아, 내 보물이거든."]},
 }
 
 const GUIDE := [
@@ -96,6 +100,7 @@ func _ready() -> void:
 	top_right.add_theme_constant_override("separation", 8)
 	top_right.add_child(UI.button("가방 (I)", open_bag, 20))
 	top_right.add_child(UI.button("지도 (M)", open_world_map, 20))
+	top_right.add_child(UI.button("목표 (G)", open_goals, 20))
 	top_right.add_child(UI.button("레시피북 (R)", toggle_book, 20))
 	top_right.add_child(UI.button("메뉴 (Esc)", open_pause, 20))
 	root.add_child(top_right)
@@ -301,6 +306,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		else:
 			open_bag()
 		get_viewport().set_input_as_handled()
+	elif event.keycode == KEY_G and not get_tree().paused:
+		if panel:
+			close_panel()
+		else:
+			open_goals()
+		get_viewport().set_input_as_handled()
 	elif event.keycode == KEY_M and not get_tree().paused:
 		if panel:
 			close_panel()
@@ -386,7 +397,9 @@ func _shop_scene(shade: ColorRect, reopen: bool) -> void:
 	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	shade.add_child(dim)
 	var key: String = look.keeper
-	if reopen and ResourceLoader.exists("res://assets/%s_happy.png" % key):
+	if reopen and look.has("happy"):
+		key = look.happy
+	elif reopen and ResourceLoader.exists("res://assets/%s_happy.png" % key):
 		key += "_happy"
 	var tex := Sprites.tex(key)
 	var k := TextureRect.new()
@@ -588,6 +601,36 @@ func open_weapon_shop() -> void:
 				show_toast("%s을(를) 샀어요! 바로 장착했어요." % w.name)
 				open_weapon_shop(), 18))
 		vb.add_child(row)
+
+
+## 목표: 해낸 것은 ★, 남은 것은 ☆. 해내면 바로 골드를 받아요. 친한 주민 하트도 여기서 봐요.
+func open_goals() -> void:
+	var vb := window("목표와 친구", 860)
+	var done := 0
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 24)
+	grid.add_theme_constant_override("v_separation", 6)
+	for g in GameState.goal_list():
+		var ok: bool = GameState.goals_done.has(g[0])
+		done += 1 if ok else 0
+		var l := UI.label("%s %s  (+%d골드)" % ["★" if ok else "☆", g[1], g[2]], 17, UI.PINK if ok else UI.OUTLINE)
+		grid.add_child(l)
+	vb.add_child(UI.label("해낸 목표 %d / %d" % [done, GameState.goal_list().size()], 18, UI.CHESTNUT))
+	vb.add_child(grid)
+	vb.add_child(UI.label("친한 주민 (하루 한 번 인사 +1, 음식 선물 +3, 하트가 늘면 선물과 팁이 늘어요)", 17, UI.CHESTNUT))
+	var keys: Array = GameState.friends.keys()
+	keys.sort_custom(func(a, b): return GameState.friends[a] > GameState.friends[b])
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 14)
+	if keys.is_empty():
+		row.add_child(UI.label("아직 인사한 주민이 없어요. 마을 주민에게 다가가 E를 눌러 봐요!", 16, Color("#9A8B7A")))
+	for k in keys.slice(0, 6):
+		var col := VBoxContainer.new()
+		col.add_child(UI.icon(Sprites.first_frame(k + "_front"), 56))
+		col.add_child(UI.label(GameState.heart_text(k), 14, UI.PINK))
+		row.add_child(col)
+	vb.add_child(row)
 
 
 ## 가방: 체력·마나, 무기 바꾸기, 모은 재료

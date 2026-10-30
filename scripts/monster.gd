@@ -21,6 +21,8 @@ var boss := false
 var walk_tex: Array = []  # 걷기 3장(있으면 번갈아 보여요)
 var hurt_tex: Texture2D
 var faint_tex: Texture2D
+var pose_tex: Texture2D  # 잠깐 보여 줄 동작(눈사람 던지기 등)
+var pose_t := 0.0
 
 
 func setup(k: String, scale_f: float) -> void:
@@ -42,7 +44,7 @@ func setup(k: String, scale_f: float) -> void:
 		faint_tex = load(base + "_faint.png")
 	sprite.texture = front
 	sprite.offset = Vector2(0, -front.get_height() / 2.0)
-	var sc := scale_f * (110.0 / front.get_height() if not walk_tex.is_empty() else 1.0)
+	var sc := scale_f * ((200.0 if boss else 110.0) / front.get_height() if not walk_tex.is_empty() else 1.0)
 	sprite.scale = Vector2(sc, sc)
 	add_child(sprite)
 	bar.draw.connect(_draw_bar)
@@ -67,8 +69,11 @@ func _process(delta: float) -> void:
 	# 맞은 직후 하얗게 번쩍 → 빨갛게 → 원래대로
 	sprite.modulate = Color(2.2, 2.2, 2.2) if hurt_t > 0.24 else (Color(1, 0.55, 0.55) if hurt_t > 0.1 else Color.WHITE)
 	# 걷기 그림을 번갈아, 맞은 직후엔 아파하는 얼굴
+	pose_t -= delta
 	if hurt_tex and hurt_t > 0.0:
 		sprite.texture = hurt_tex
+	elif pose_tex and pose_t > 0.0:
+		sprite.texture = pose_tex
 	elif not walk_tex.is_empty():
 		sprite.texture = walk_tex[int(_t * 6.0) % 3]
 	# 통통 튀며 움직여요
@@ -93,6 +98,11 @@ func _process(delta: float) -> void:
 		_try_move(v * delta)
 	if to_p.length() < (30.0 if not boss else 70.0):
 		field.hurt_player(data.dmg, to_p.normalized())
+
+
+func show_pose(tex: Texture2D, t: float) -> void:
+	pose_tex = tex
+	pose_t = t
 
 
 func _face(v: Vector2) -> void:

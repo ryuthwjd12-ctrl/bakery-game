@@ -26,6 +26,9 @@ var mp_regen := 0.0
 var boss = null
 var snow_cd := 3.0
 var overlays := {}
+var residents: Array = []
+const TOWN_TALK := ["어서 와! 도토리 마을에서 왔구나?", "빵 냄새가 여기까지 나는 것 같아.", "우리 마을 구경하고 가!",
+	"다음에 빵집에 놀러 갈게.", "오늘 날씨 좋다~", "가게는 저쪽이야!"]
 var ground := {}
 ## 채집할 수 있는 곳: 지도 그림 → {덮개 id: [재료, 개수 최소, 최대, 서는 곳]}
 const GATHER := {
@@ -90,6 +93,7 @@ func _ready() -> void:
 	for i in area.get("count", 0):
 		_spawn_monster()
 	Audio.play_bgm("bgm_forest" if area.has("monsters") or area.has("boss") else "bgm_village")
+	add_child(Weather.new())  # 시간 따라 하늘빛, 비 오는 날엔 비
 	main.hud.show_toast(area.name + (" — 몬스터 조심!" if area.has("monsters") else ""))
 
 
@@ -123,6 +127,7 @@ func _spawn_resident(kind: String) -> void:
 	a.speed = 40.0
 	a.position = walk.random_point()
 	world.add_child(a)
+	residents.append(a)
 	_wander(a)
 
 
@@ -169,6 +174,7 @@ func _on_monster_died(m) -> void:
 		_boss_defeated()
 		return
 	GameState.gold += d.gold
+	GameState.stats.monsters = GameState.stats.get("monsters", 0) + 1
 	var msg := "+%d골드" % d.gold
 	if d.drop != "" and randf() < 0.7:
 		GameState.add_item(d.drop, 1)
@@ -192,7 +198,7 @@ func _fly_icon(tex: Texture2D, at: Vector2) -> void:
 	tw.tween_callback(s.queue_free)
 
 
-func float_text(at: Vector2, text: String, col: Color) -> void:
+func float_text(at: Vector2, text: String, col: Color, dur := 0.8) -> void:
 	var l := UI.label(text, 16, col)
 	l.add_theme_color_override("font_outline_color", Color.WHITE)
 	l.add_theme_constant_override("outline_size", 6)
@@ -200,6 +206,8 @@ func float_text(at: Vector2, text: String, col: Color) -> void:
 	l.z_index = 80
 	add_child(l)
 	var tw := l.create_tween()
+	if dur > 1.0:
+		tw.tween_interval(dur - 0.8)
 	tw.tween_property(l, "position:y", at.y - 40, 0.8)
 	tw.parallel().tween_property(l, "modulate:a", 0.0, 0.8)
 	tw.tween_callback(l.queue_free)
@@ -276,7 +284,12 @@ func _process(delta: float) -> void:
 func _find_near():
 	var p: Vector2 = player.position
 	if area.has("shop") and p.distance_to(area.shop.pos) < 60:
-		return {"text": area.shop.name, "do": func(): main.hud.open_trade(area.shop.name, area.shop.items)}
+		return {"text": area.shop.name, "do": func():
+			main.hud.shop_ctx = area.shop.get("look", "")
+			main.hud.open_trade(area.shop.name, area.shop.items)}
+	for a in residents:
+		if is_instance_valid(a) and p.distance_to(a.position) < 40:
+			return {"text": GameState.friend_action(a.kind), "do": _greet.bind(a)}
 	var spots: Dictionary = GATHER.get(area.bg, {})
 	for sid in spots:
 		if not GameState.picked_today.has(area_id + "_" + sid) and p.distance_to(spots[sid][3]) < 55:
@@ -285,6 +298,21 @@ func _find_near():
 		if is_instance_valid(ground[gid]) and p.distance_to(ground[gid].position) < 40:
 			return {"text": "줍기", "do": _pick_ground.bind(gid)}
 	return null
+
+
+func _greet(a) -> void:
+	var k: String = a.kind
+	var line: String = TOWN_TALK.pick_random()
+	if not GameState.talked_today.has(k):
+		GameState.talk(k)
+	elif not GameState.gifted_today.has(k):
+		var food := GameState.gift(k)
+		if food != "":
+			line = "와, %s! 정말 고마워!" % GameState.item_name(food)
+			Audio.sfx("sparkle")
+	float_text(a.position + Vector2(0, -60), line + "\n" + GameState.heart_text(k), Color("#C0566B"), 2.6)
+	Audio.sfx("order")
+	UI.pop(a.sprite, 0.15)
 
 
 func _gather(sid: String) -> void:
@@ -454,6 +482,7 @@ func _check_boss(delta: float) -> void:
 	snow_cd -= delta
 	if snow_cd <= 0:
 		snow_cd = 2.6
+		boss.show_pose(load("res://assets/monsters/snowman_throw.png"), 0.45)
 		_snowball(boss.position + Vector2(0, -60), (player.position + Vector2(0, -30) - boss.position - Vector2(0, -60)).normalized())
 
 
@@ -491,8 +520,9 @@ func _boss_defeated() -> void:
 	Audio.sfx("sparkle")
 	var down := Sprite2D.new()
 	down.texture = load("res://assets/monsters/snowman_down.png")
-	down.offset = Vector2(0, -100)
-	down.scale = Vector2(area.hero * 1.4, area.hero * 1.4)
+	var ds: float = area.hero * 1.4 * 200.0 / boss.front.get_height()
+	down.offset = Vector2(0, -down.texture.get_height() / 2.0)
+	down.scale = Vector2(ds, ds)
 	down.position = boss.position
 	world.add_child(down)
 	main.hud.notice("눈사람 거인을 이겼어요!", "\"헤헤, 졌다! 너무 신나게 놀았어.\n고마움의 선물로 눈꽃 쿠키 만드는 법을 알려 줄게.\"\n\n500골드와 눈꽃 쿠키 레시피를 얻었어요!\n(밀가루 + 설탕 + 버터 + 생크림 + 별 틀)")

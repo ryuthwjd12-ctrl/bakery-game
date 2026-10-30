@@ -49,7 +49,11 @@ func _ready():
 	main.current._gather("berry_bush"); await _wait(0.8); await _shot("f7b_forest_gather")
 	main.goto_field("petal_hill", "forest_north"); await _wait(1.5); await _shot("f8_petal_hill")
 	main.current.player.position = Vector2(721, 470); await _wait(1.0); await _shot("f8b_petal_shop")
+	main.hud.shop_ctx = "petal"; main.hud.open_trade("꽃잎 언덕 꿀가게", ["honey_jar", "matcha", "milk"]); await _wait(0.5); await _shot("f8c_petal_inside")
+	main.hud.close_panel()
 	main.goto_field("seashell_beach", "forest_east"); await _wait(1.5); await _shot("f9_beach")
+	main.hud.shop_ctx = "beach"; main.hud.open_trade("바닷가 생선 가게", ["chocolate", "cream", "matcha"]); await _wait(0.5); await _shot("f9b_beach_inside")
+	main.hud.close_panel()
 	main.goto_field("apple_orchard", "forest_south"); await _wait(1.5); await _shot("f10_orchard")
 	main.current.player.position = Vector2(166, 455); await _wait(0.5)
 	main.current._gather("blueberry"); main.current._gather("grape"); await _wait(0.8); await _shot("f10b_orchard_gather")
@@ -73,6 +77,20 @@ func _ready():
 	main.current.player.walk_to(Vector2(757, 2))
 	await _wait(1.0)
 	print("after exit: ", main.current_name, " ", main.current.get("area_id"))
+	# 저녁 비 오는 마을, 주민과 인사·선물, 목표 창
+	GameState.rain = true
+	GameState.minutes = 18.8 * 60
+	GameState.add_stock("butter_cookie", 2)
+	main.goto("village"); await _wait(1.5)
+	var vv = main.current
+	var r = vv.residents[0]
+	vv.player.position = r.position + Vector2(-20, 0)
+	vv._greet(r); await _wait(0.4)
+	vv._greet(r); await _wait(0.6); await _shot("g1_evening_rain_friend")
+	GameState.friends["sq2"] = 12
+	main.hud.open_goals(); await _wait(0.4); await _shot("g2_goals")
+	main.hud.close_panel()
+	print("hearts sq: ", GameState.heart_text(r.kind), " goals ", GameState.goals_done)
 	get_tree().quit()
 func _wait(s): await get_tree().create_timer(s, true).timeout
 func _shot(n):

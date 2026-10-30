@@ -146,12 +146,15 @@ func _process(delta: float) -> void:
 			animal.position.y = -absf(sin(eat_left * 6.0)) * 3.0
 			if eat_left <= 0:
 				var price: int = GameState.ITEMS[order].price
-				var tip := (5 if GameState.cleanliness >= 80 else 0) + GameState.decor * 2 + GameState.dishes * 3
+				# 친한 주민일수록 팁을 더 줘요(하트 하나에 2골드)
+				var tip := (5 if GameState.cleanliness >= 80 else 0) + GameState.decor * 2 + GameState.dishes * 3 \
+					+ GameState.hearts(kind) * 2
 				if quest_id != "":
 					_finish_quest()
 				GameState.earn(price + tip)
 				GameState.today.tips = GameState.today.get("tips", 0) + tip
 				GameState.today.served += 1
+				GameState.stats.served = GameState.stats.get("served", 0) + 1
 				var sold: Dictionary = GameState.today.get("sold", {})
 				sold[order] = sold.get(order, 0) + 1
 				GameState.today.sold = sold

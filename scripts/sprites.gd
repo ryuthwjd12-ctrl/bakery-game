@@ -13,10 +13,12 @@ static var _cache := {}
 
 
 static func has_strip(key: String) -> bool:
-	return SpriteDataR5.STRIPS.has(key) or SpriteDataR4.STRIPS.has(key) or SpriteData.STRIPS.has(key) or SpriteDataExtra.STRIPS.has(key)
+	return SpriteDataR6.STRIPS.has(key) or SpriteDataR5.STRIPS.has(key) or SpriteDataR4.STRIPS.has(key) or SpriteData.STRIPS.has(key) or SpriteDataExtra.STRIPS.has(key)
 
 
 static func info(key: String) -> Array:
+	if SpriteDataR6.STRIPS.has(key):
+		return SpriteDataR6.STRIPS[key]
 	if SpriteDataR5.STRIPS.has(key):
 		return SpriteDataR5.STRIPS[key]
 	if SpriteDataR4.STRIPS.has(key):
@@ -82,7 +84,7 @@ static func animal_frames(kind: String) -> SpriteFrames:
 
 ## 새 주민 그림(다람쥐 sq, 토끼 rb, 펭귄 pg, 사슴 dr)은 예전 동물보다 크게 그려져 있어서 키를 맞추는 배율
 static func size_fix(kind: String) -> float:
-	return 121.0 / frame_height(kind + "_front") if kind.left(2) in ["sq", "rb", "pg", "dr"] else 1.0
+	return 121.0 / frame_height(kind + "_front") if kind.left(2) in ["sq", "rb", "pg", "dr", "ct"] else 1.0
 
 
 static func frame_height(key: String) -> int:

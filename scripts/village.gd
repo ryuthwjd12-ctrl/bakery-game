@@ -161,8 +161,9 @@ func _ready() -> void:
 		puppy = AnimatedSprite2D.new()
 		puppy.sprite_frames = Sprites.frames_for("puppy", ["front", "back", "right", "tray", "sweep"])
 		puppy.animation = "front"
-		puppy.offset = Vector2(0, -61)
-		puppy.scale = Vector2(0.14, 0.14)
+		var ph := float(Sprites.frame_height("puppy_front"))
+		puppy.offset = Vector2(0, -ph / 2.0)
+		puppy.scale = Vector2.ONE * 0.14 * 122.0 / ph
 		var holder := Node2D.new()
 		holder.position = Vector2(778, 470)
 		holder.add_child(puppy)
@@ -173,6 +174,7 @@ func _ready() -> void:
 	GameState.customer_spawned.connect(_on_customer)
 	GameState.customer_left.connect(_on_customer_left)
 	Audio.play_bgm("bgm_village")
+	add_child(Weather.new())  # 시간 따라 하늘빛, 비 오는 날엔 비
 
 
 func _spawn_resident(kind: String) -> void:
@@ -250,7 +252,7 @@ func _actions() -> Array:
 	if puppy:
 		out.append({"pos": Vector2(778, 488), "r": 30.0, "text": "강아지와 이야기", "do": _talk_puppy})
 	for a in residents:
-		out.append({"pos": a.position, "r": 24.0, "text": "인사하기", "do": _greet.bind(a)})
+		out.append({"pos": a.position, "r": 24.0, "text": GameState.friend_action(a.kind), "do": _greet.bind(a)})
 	return out
 
 
@@ -439,9 +441,20 @@ func _say_over(node: Node2D, text: String, height := 70.0) -> void:
 	tw.tween_callback(l.queue_free)
 
 
+## 인사(하루 한 번 친밀도 +1) → 선물(진열대 음식 하나, +3) → 그 뒤엔 이야기만. 말풍선에 하트가 보여요.
 func _greet(a) -> void:
-	_say_over(a, GREETINGS.pick_random(), 26.0)
+	var k: String = a.kind
+	var line: String = GREETINGS.pick_random()
+	if not GameState.talked_today.has(k):
+		GameState.talk(k)
+	elif not GameState.gifted_today.has(k):
+		var food := GameState.gift(k)
+		if food != "":
+			line = "와, %s! 정말 고마워!" % GameState.item_name(food)
+			Audio.sfx("sparkle")
+	_say_over(a, line + "\n" + GameState.heart_text(k), 26.0)
 	Audio.sfx("order")
+	UI.pop(a.sprite, 0.15)
 
 
 func _talk_puppy() -> void:

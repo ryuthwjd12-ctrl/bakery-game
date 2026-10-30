@@ -1,4 +1,4 @@
-"""마을 주민 시트(art/raw/69 펭귄, 70 토끼, 71 사슴)를 잘라 동물 그림 줄로 만들어요. python3 tools/round4d.py
+"""마을 주민 시트(art/raw/69 펭귄, 70 토끼, 71 사슴, 72 고양이)를 잘라 동물 그림 줄로 만들어요. python3 tools/round4d.py
 줄마다 한 마리(4마리), 칸 순서: 앞, 뒤, 옆(소품 있음) ..., 앉아 기다리기, 먹기, 웃기.
 걷는 그림 칸은 소품이 빠져 있어서, 옆모습(소품 있는 칸)을 통통 튀게 걸려요."""
 import os
@@ -15,6 +15,7 @@ exec(src[src.index('def cutout'):src.index('def fit')])
 SHEETS = {  # 시트: (이름 앞글자, 칸 수, {동작: [칸...]})
     '69.png': ('pg', 10, {'front': [0], 'back': [1], 'right': [2, 3], 'wait': [7], 'eat': [8], 'happy': [9]}),
     '70.png': ('rb', 10, {'front': [0], 'back': [1], 'right': [2, 3], 'wait': [7], 'eat': [8], 'happy': [9]}),
+    '72.png': ('ct', 10, {'front': [0], 'back': [1], 'right': [2, 3], 'wait': [7], 'eat': [8], 'happy': [9]}),
     '71.png': ('dr', 8, {'front': [0], 'back': [1], 'right': [2], 'wait': [5], 'eat': [6], 'happy': [7]}),
 }
 

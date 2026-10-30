@@ -428,7 +428,7 @@ func _spawn_tick(delta: float) -> void:
 		return
 	# 깨끗하고 유명한 가게일수록 손님이 자주 와요.
 	var base := lerpf(34.0, 16.0, GameState.cleanliness / 100.0) - GameState.level() * 1.5 \
-		- GameState.annex_tables * 2.0 - GameState.decor * 2.0
+		- GameState.annex_tables * 2.0 - GameState.decor * 2.0 + (6.0 if GameState.rain else 0.0)
 	spawn_left = maxf(10.0, base) + randf() * 6.0
 	var free := tables.filter(func(t): return t.state == "empty" and not t.dirty)
 	if free.is_empty():

@@ -160,10 +160,23 @@ var boss_done := false
 var active_quest := ""  # 받은 부탁(그날만)
 var quest_seen_today := false
 var dishes := 0  # 그릇 가게에서 산 예쁜 그릇 세트 수(팁이 늘어요)
-var visited: Array = []  # 가 본 다른 마을(그 마을 동물이 손님으로 놀러 와요)
+var visited: Array = []
+## 달력과 날씨: 계절마다 28일, 가끔 비가 와요(비 오는 날은 손님이 조금 적어요).
+const SEASONS := ["봄", "여름", "가을", "겨울"]
+const WEEK := ["월", "화", "수", "목", "금", "토", "일"]
+var rain := false
+## 주민과 친해지기: 하루 한 번 인사 +1, 음식 선물 +3. 5점마다 하트 하나(최대 5개).
+var friends := {}  # 주민 그림 이름 → 점수
+var talked_today: Array = []
+var gifted_today: Array = []
+## 목표: 해내면 보상을 받아요.
+var goals_done: Array = []
+var stats := {"served": 0, "monsters": 0}
+## 알바생 피로: 일할수록 쌓이고, 다 차면 잠깐 쉬어요.
+var waiter_tired := 0.0  # 가 본 다른 마을(그 마을 동물이 손님으로 놀러 와요)
 
 const SAVE_KEYS := ["hero", "gold", "day", "inv", "stock", "known", "oven", "rep", "has_waiter", "tutorial",
-	"annex_tables", "decor", "hp", "mp", "weapons", "weapon", "quests_done", "boss_done", "visited", "dishes"]
+	"annex_tables", "decor", "hp", "mp", "weapons", "weapon", "quests_done", "boss_done", "visited", "dishes", "friends", "goals_done", "stats"]
 ## 무기: 근접(melee)은 앞으로 휘두르고, 마법(magic)은 반짝이를 쏘며 마나를 써요. 비쌀수록 세요.
 const WEAPONS := {
 	"spatula": {"name": "나무 뒤집개", "type": "melee", "power": 8, "price": 0, "icon": "items/w_spatula"},
@@ -177,7 +190,7 @@ const WEAPONS := {
 }
 ## 한 마을에는 한 동물만 살아요(주민 그림 이름들).
 const VILLAGE_ANIMAL := {"village": ["sq1", "sq2", "sq3", "sq4", "sq5", "sq6"],
-	"petal_hill": ["rb1", "rb2", "rb3", "rb4"], "seashell_beach": ["cat"],
+	"petal_hill": ["rb1", "rb2", "rb3", "rb4"], "seashell_beach": ["ct1", "ct2", "ct3", "ct4"],
 	"apple_orchard": ["dr1", "dr2", "dr3", "dr4"], "snowflake_village": ["pg1", "pg2", "pg3", "pg4"]}
 const ANNEX_MAX := 4
 const DECOR_MAX := 2
@@ -204,6 +217,11 @@ func new_game(h: String) -> void:
 	weapon = "spatula"
 	quests_done = []
 	boss_done = false
+	visited = []
+	dishes = 0
+	friends = {}
+	goals_done = []
+	stats = {"served": 0, "monsters": 0}
 	_reset_day()
 	changed.emit()
 
@@ -224,9 +242,21 @@ func _reset_day() -> void:
 	quest_seen_today = false
 	day_over = false
 	today = {"served": 0, "earned": 0, "tips": 0, "spent": 0, "lost": 0, "new": 0, "sold": {}, "rep_start": rep}
+	talked_today = []
+	gifted_today = []
+	waiter_tired = 0.0
+	rain = day > 1 and (day * 7919 % 100) < 22  # 날마다 정해진 날씨(다시 불러와도 같아요)
+
+
+var _goal_t := 0.0
 
 
 func _process(delta: float) -> void:
+	# 목표는 2초마다 확인해요(어디서 무엇을 하든)
+	_goal_t += delta
+	if _goal_t > 2.0 and clock_running:
+		_goal_t = 0.0
+		check_goals()
 	if not clock_running or day_over:
 		return
 	minutes += delta / SECONDS_PER_MINUTE
@@ -259,7 +289,106 @@ func clock_text() -> String:
 	var h := m / 60
 	var ampm := "오전" if h < 12 else "오후"
 	var h12 := h if h <= 12 else h - 12
-	return "%d일차  %s %d:%02d" % [day, ampm, h12, (m % 60) / 10 * 10]
+	return "%s  %s %d:%02d%s" % [date_text(), ampm, h12, (m % 60) / 10 * 10, "  비" if rain else ""]
+
+
+func date_text() -> String:
+	var d := day - 1
+	return "%s %d일 (%s)" % [SEASONS[(d / 28) % 4], d % 28 + 1, WEEK[d % 7]]
+
+
+## 지금 시각의 하늘빛(마을·숲에 깔아요): 낮에는 그대로, 저녁엔 노을빛, 밤엔 푸르스름하게.
+func sky_color() -> Color:
+	var h := minutes / 60.0
+	var c := Color.WHITE
+	if h >= 16.5 and h < 18.5:
+		c = Color.WHITE.lerp(Color(1.0, 0.86, 0.72), (h - 16.5) / 2.0)
+	elif h >= 18.5:
+		c = Color(1.0, 0.86, 0.72).lerp(Color(0.62, 0.66, 0.86), clampf((h - 18.5) / 2.0, 0.0, 1.0))
+	if rain:
+		c = c * Color(0.86, 0.88, 0.94)
+	return c
+
+
+func heart_text(kind: String) -> String:
+	var h := hearts(kind)
+	return "♥".repeat(h) + "♡".repeat(5 - h)
+
+
+## 주민에게 다가가면 뜨는 말: 오늘 처음이면 인사, 인사했으면 선물(진열대에 음식이 있을 때), 아니면 이야기
+func friend_action(kind: String) -> String:
+	if not talked_today.has(kind):
+		return "인사하기"
+	if not gifted_today.has(kind) and not stock.is_empty():
+		return "선물하기 (진열대 음식)"
+	return "이야기하기"
+
+
+func hearts(kind: String) -> int:
+	return mini(5, friends.get(kind, 0) / 5)
+
+
+## 인사하기: 하루 한 번 친밀도 +1. 하트가 늘면 true.
+func talk(kind: String) -> bool:
+	if talked_today.has(kind):
+		return false
+	talked_today.append(kind)
+	return _add_friend(kind, 1)
+
+
+## 음식 선물: 하루 한 번, 진열대의 음식을 하나 줘요. 친밀도 +3.
+func gift(kind: String) -> String:
+	if gifted_today.has(kind):
+		return ""
+	for id in stock:
+		if take_stock(id):
+			gifted_today.append(kind)
+			_add_friend(kind, 3)
+			return id
+	return ""
+
+
+func _add_friend(kind: String, n: int) -> bool:
+	var before := hearts(kind)
+	friends[kind] = friends.get(kind, 0) + n
+	var up := hearts(kind) > before
+	if up:
+		# 하트가 늘면 그 주민이 고마움의 선물을 줘요
+		gold += 20 * hearts(kind)
+		toast.emit("♥ 친밀도 하트 %d개! 고맙다며 %d골드를 줬어요." % [hearts(kind), 20 * hearts(kind)])
+	check_goals()
+	changed.emit()
+	return up
+
+
+## 목표 목록: [id, 내용, 보상 골드, 달성했는지 확인]
+func goal_list() -> Array:
+	var max_heart := 0
+	for k in friends:
+		max_heart = maxi(max_heart, hearts(k))
+	return [
+		["serve10", "손님 10명에게 음식 내주기", 100, stats.get("served", 0) >= 10],
+		["recipes5", "레시피 5개 알아내기", 120, known.size() >= 5],
+		["heart1", "주민과 친해지기 (하트 1개)", 80, max_heart >= 1],
+		["table1", "가구점에서 탁자 세트 사기", 100, annex_tables >= 1],
+		["monster10", "몬스터 10마리 물리치기", 150, stats.get("monsters", 0) >= 10],
+		["visit2", "다른 마을 2곳 가 보기", 150, visited.size() >= 2],
+		["level3", "가게 레벨 3 되기", 200, level() >= 3],
+		["serve100", "손님 100명에게 음식 내주기", 400, stats.get("served", 0) >= 100],
+		["recipes15", "레시피 15개 알아내기", 400, known.size() >= 15],
+		["heart5", "주민 한 명과 하트 5개", 500, max_heart >= 5],
+		["boss", "눈사람 거인 물리치기", 300, boss_done],
+		["visit4", "다른 마을 4곳 모두 가 보기", 300, visited.size() >= 4],
+	]
+
+
+func check_goals() -> void:
+	for g in goal_list():
+		if g[3] and not goals_done.has(g[0]):
+			goals_done.append(g[0])
+			gold += g[2]
+			Audio.sfx("sparkle")
+			toast.emit("★ 목표 달성: %s  (+%d골드)" % [g[1], g[2]])
 
 
 func is_open() -> bool:
@@ -490,6 +619,9 @@ func load_game() -> bool:
 	boss_done = data.get("boss_done", false)
 	visited = data.get("visited", [])
 	dishes = int(data.get("dishes", 0))
+	friends = _ints(data.get("friends", {}))
+	goals_done = data.get("goals_done", [])
+	stats = _ints(data.get("stats", {"served": 0, "monsters": 0}))
 	_reset_day()
 	changed.emit()
 	return true
