@@ -75,6 +75,14 @@ var tables: Array = []
 var walk: WalkMap  # 홀
 var annex_walk: WalkMap  # 별관 (별관 좌표 그대로, ANNEX_X를 빼서 써요)
 var annex_layer := Node2D.new()
+var furn_layer := Node2D.new()  # 놓은 탁자(손님·주인공 아래)
+var furn_nodes: Array = []
+var furn_tables: Array = []  # 놓은 탁자 세트의 손님 자리
+## 꾸미기(B): 산 가구를 고르면 마우스를 따라다니고, 누르면 그 자리에 놓여요. 놓은 가구를 누르면 다시 들어요.
+var edit_mode := false
+var ghost_id := ""
+var ghost: Sprite2D
+var ghost_from := -1  # 놓여 있던 가구를 든 거면 그 번호(취소하면 제자리)
 var cam := Camera2D.new()
 var spawn_left := 3.0
 var active := false
@@ -93,20 +101,14 @@ func _ready() -> void:
 	abg.centered = false
 	abg.position = Vector2(ANNEX_X, 0)
 	add_child(abg)
-	add_child(annex_layer)  # 별관 탁자는 배경 바로 위, 손님·주인공 아래
+	add_child(annex_layer)
+	add_child(furn_layer)  # 놓은 탁자는 배경 바로 위, 손님·주인공 아래
 	world.y_sort_enabled = true
 	add_child(world)
-	walk = WalkMap.new(FLOOR, BLOCKS)
-	var n_sets := GameState.annex_tables
-	for i in n_sets:
-		GameState.annex_tables = i + 1
-		add_annex_set()
-	for i in GameState.decor:
-		_place_decor(i)
-	_build_annex()
-
 	for sd in SEATS:
 		_add_table(sd, Vector2.ZERO)
+	_migrate_furniture()
+	rebuild_furniture()
 
 	player = Player.new()
 	player.setup(GameState.hero, HERO_SCALE)
@@ -134,72 +136,127 @@ func _add_table(sd: Dictionary, off: Vector2):
 	return t
 
 
-## 별관 걷기 지도와 가구를 (다시) 만들어요. 탁자나 화분을 사면 불러요.
-func _build_annex() -> void:
-	var blocks: Array = []
-	for i in GameState.annex_tables:
-		var o: Vector2 = ANNEX_SLOTS[i]
-		var poly: Array = []
-		for q in SET_BLOCK:
-			poly.append(q + o)
-		blocks.append(poly)
-	for i in GameState.decor:
-		var tex := Sprites.tex(DECOR_SPOTS[i][0])
-		var o: Vector2 = DECOR_SPOTS[i][1]
-		var w := float(tex.get_width())
-		var h := float(tex.get_height())
-		blocks.append([o + Vector2(w * 0.1, h * 0.7), o + Vector2(w * 0.9, h * 0.7), o + Vector2(w * 0.9, h), o + Vector2(w * 0.1, h)])
-	annex_walk = WalkMap.new(ANNEX_FLOOR, blocks, 12, ANNEX_SIZE)
+## ---- 가구: 가구점·인테리어점에서 산 가구를 "꾸미기"(B)로 홀이나 별관 바닥에 직접 놓아요.
+## 놓은 가구는 걸을 수 없는 자리가 되고, 탁자 세트에는 손님 두 명이 앉아요.
+
+## 예전 저장 파일(정해진 자리에 놓이던 탁자·화분)을 새 방식으로 옮겨요.
+func _migrate_furniture() -> void:
+	if not GameState.placed.is_empty():
+		return
+	for i in mini(GameState.annex_tables, ANNEX_SLOTS.size()):
+		var o: Vector2 = ANNEX_SLOTS[i] + Vector2(ANNEX_X, 0)
+		GameState.placed.append({"id": "table_set", "x": o.x, "y": o.y})
+	var ids := ["plant_big", "plant_small"]
+	for i in mini(GameState.decor, 2):
+		var tex := Sprites.tex(GameState.FURNITURE[ids[i]].tex)
+		var o2: Vector2 = DECOR_SPOTS[i][1] + Vector2(ANNEX_X - tex.get_width() / 2.0, 0)
+		GameState.placed.append({"id": ids[i], "x": o2.x, "y": o2.y})
 
 
-## 가구점에서 산 물건을 별관에 놓아요.
-func add_annex_set() -> void:
-	var i := GameState.annex_tables - 1
-	var o: Vector2 = ANNEX_SLOTS[i] + Vector2(ANNEX_X, 0)
-	var sp := Sprite2D.new()
-	sp.texture = Sprites.tex("furniture/table_set")
-	sp.centered = false
-	sp.position = o
-	annex_layer.add_child(sp)
-	for sd in SET_SEATS:
-		_add_table(sd, o)
-	_build_annex()
+func _foot(id: String, o: Vector2) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for q in GameState.FURNITURE[id].foot:
+		out.append(q + o)
+	return out
 
 
-## 가구를 되팔면 마지막에 놓은 탁자 세트를 치워요(손님이 앉아 있으면 못 팔아요).
-func remove_annex_set() -> bool:
-	var last2 := tables.slice(tables.size() - 2)
-	for t in last2:
-		if t.state != "empty" or t.dirty:
-			return false
-	for t in last2:
+## 놓은 가구를 모두 다시 그리고, 걷기 지도와 손님 자리를 다시 만들어요.
+func rebuild_furniture() -> void:
+	for n in furn_nodes:
+		n.queue_free()
+	furn_nodes.clear()
+	for t in furn_tables:
 		tables.erase(t)
+		GameState.orders.erase(t)
 		t.queue_free()
-	var sps := annex_layer.get_children()
-	if not sps.is_empty():
-		sps[-1].queue_free()
-	GameState.annex_tables -= 1
-	_build_annex()
+	furn_tables.clear()
+	var hall_blocks: Array = BLOCKS.duplicate()
+	var annex_blocks: Array = []
+	for i in GameState.placed.size():
+		var p: Dictionary = GameState.placed[i]
+		var f: Dictionary = GameState.FURNITURE[p.id]
+		var o := Vector2(p.x, p.y)
+		var sp := Sprite2D.new()
+		sp.texture = Sprites.tex(f.tex)
+		sp.centered = false
+		sp.set_meta("placed", i)
+		if f.kind == "table":
+			sp.position = o
+			furn_layer.add_child(sp)  # 탁자는 앉은 손님보다 아래
+			for sd in SET_SEATS:
+				furn_tables.append(_add_table(sd, o))
+		else:
+			# 화분은 발 위치로 앞뒤가 정해져요(주인공이 뒤로 가면 가려져요)
+			sp.offset = Vector2(0, -sp.texture.get_height())
+			sp.position = o + Vector2(0, sp.texture.get_height())
+			world.add_child(sp)
+		furn_nodes.append(sp)
+		var foot := Array(_foot(p.id, o))
+		if in_annex(o + Vector2(10, 10)):
+			annex_blocks.append(foot.map(func(q): return q - Vector2(ANNEX_X, 0)))
+		else:
+			hall_blocks.append(foot)
+	walk = WalkMap.new(FLOOR, hall_blocks)
+	annex_walk = WalkMap.new(ANNEX_FLOOR, annex_blocks, 12, ANNEX_SIZE)
+	GameState.annex_tables = GameState.placed_count("table")
+	GameState.decor = GameState.placed_count("decor")
+
+
+## 이 자리에 놓을 수 있는지(바닥 위, 다른 가구·문·길목과 안 겹치게). skip은 지금 옮기는 가구 번호.
+func can_place(id: String, o: Vector2, skip := -1) -> bool:
+	var foot := _foot(id, o)
+	var c := Vector2.ZERO
+	for q in foot:
+		c += q
+	c /= foot.size()
+	var annex := in_annex(c)
+	var floor_poly := PackedVector2Array(ANNEX_FLOOR.map(func(q): return q + Vector2(ANNEX_X, 0))) if annex else PackedVector2Array(FLOOR)
+	for q in foot:
+		if not Geometry2D.is_point_in_polygon(q, floor_poly) or in_annex(q) != annex:
+			return false
+	if not annex:
+		for b in BLOCKS:
+			if not Geometry2D.intersect_polygons(foot, PackedVector2Array(b)).is_empty():
+				return false
+	for i in GameState.placed.size():
+		if i == skip:
+			continue
+		var p: Dictionary = GameState.placed[i]
+		if not Geometry2D.intersect_polygons(foot, _foot(p.id, Vector2(p.x, p.y))).is_empty():
+			return false
+	for spot in [DOOR, KITCHEN_SPOT, ANNEX_DOOR, CASE_SPOT, HALL_ENTRY, ANNEX_BACK + Vector2(ANNEX_X, 0),
+			ANNEX_ENTRY + Vector2(ANNEX_X, 0), ANNEX_EXIT + Vector2(ANNEX_X, 0)]:
+		if Geometry2D.is_point_in_polygon(spot, foot) or c.distance_to(spot) < 90:
+			return false
+	# 탁자는 손님에게 다가갈 자리가 바닥 위여야 해요
+	if GameState.FURNITURE[id].kind == "table":
+		for sd in SET_SEATS:
+			var st: Vector2 = sd.stand + o
+			if not Geometry2D.is_point_in_polygon(st, floor_poly):
+				return false
 	return true
 
 
-func add_decor() -> void:
-	var i := GameState.decor - 1
-	_place_decor(i)
-	_build_annex()
+## 가구에 손님이 앉아 있으면 옮길 수 없어요.
+func furniture_busy(i: int) -> bool:
+	var p: Dictionary = GameState.placed[i]
+	if GameState.FURNITURE[p.id].kind != "table":
+		return false
+	var o := Vector2(p.x, p.y)
+	for t in furn_tables:
+		if t.position.distance_to(o + SET_SEATS[0].seat) < 1.0 or t.position.distance_to(o + SET_SEATS[1].seat) < 1.0:
+			if t.state != "empty":
+				return true
+	return false
 
 
-func _place_decor(i: int) -> void:
-	var sp := Sprite2D.new()
-	var tex := Sprites.tex(DECOR_SPOTS[i][0])
-	sp.texture = tex
-	sp.offset = Vector2(tex.get_width() / 2.0, 0)
-	sp.centered = false
-	sp.position = DECOR_SPOTS[i][1] + Vector2(ANNEX_X - tex.get_width() / 2.0, 0)
-	world.add_child(sp)
-	# y 정렬을 발 위치로 맞춰요
-	sp.offset.y = -tex.get_height()
-	sp.position.y += tex.get_height()
+func furniture_at(p: Vector2) -> int:
+	for i in range(GameState.placed.size() - 1, -1, -1):
+		var q: Dictionary = GameState.placed[i]
+		var tex := Sprites.tex(GameState.FURNITURE[q.id].tex)
+		if Rect2(Vector2(q.x, q.y), tex.get_size()).has_point(p):
+			return i
+	return -1
 
 
 func in_annex(p: Vector2) -> bool:
@@ -313,6 +370,10 @@ func _process(delta: float) -> void:
 	_spawn_tick(delta)
 	if not active:
 		return
+	if edit_mode:
+		_ghost_follow()
+		main.hud.set_prompt("", Vector2.ZERO)
+		return
 	door_cooldown -= delta
 	var annex_now := in_annex(player.position)
 	if annex_now != (cam.limit_left > 0):
@@ -340,7 +401,12 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not active or main.hud.is_panel_open() or player.busy:
+	if not active or main.hud.is_panel_open():
+		return
+	if edit_mode:
+		_edit_input(event)
+		return
+	if player.busy:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if (event.keycode == KEY_E or event.keycode == KEY_SPACE) and near:
@@ -359,6 +425,121 @@ func _unhandled_input(event: InputEvent) -> void:
 				walk_player(a.pos)
 				return
 		walk_player(p)
+
+
+## --- 꾸미기 ---
+func set_edit(on: bool) -> void:
+	if not on:
+		cancel_ghost()
+	edit_mode = on
+	player.walk_to(player.position)
+
+
+func mouse_world() -> Vector2:
+	return get_viewport().get_canvas_transform().affine_inverse() * get_viewport().get_mouse_position()
+
+
+## 가방의 가구 하나를 들어요(마우스를 따라와요).
+func hold(id: String, from := -1) -> void:
+	cancel_ghost()
+	ghost_id = id
+	ghost_from = from
+	ghost = Sprite2D.new()
+	ghost.texture = Sprites.tex(GameState.FURNITURE[id].tex)
+	ghost.centered = false
+	ghost.z_index = 50
+	add_child(ghost)
+	_ghost_follow()
+
+
+func _ghost_origin() -> Vector2:
+	var tex: Texture2D = ghost.texture
+	return (mouse_world() - Vector2(tex.get_width() / 2.0, tex.get_height() * 0.75)).round()
+
+
+func _ghost_follow() -> void:
+	if ghost == null:
+		return
+	var o := _ghost_origin()
+	ghost.position = o
+	var ok := can_place(ghost_id, o, ghost_from)
+	ghost.modulate = Color(0.75, 1.0, 0.75, 0.75) if ok else Color(1.0, 0.55, 0.55, 0.6)
+
+
+func cancel_ghost() -> void:
+	if ghost_from >= 0 and ghost_from < furn_nodes.size() and is_instance_valid(furn_nodes[ghost_from]):
+		furn_nodes[ghost_from].modulate.a = 1.0
+	if ghost:
+		ghost.queue_free()
+	ghost = null
+	ghost_id = ""
+	ghost_from = -1
+
+
+func _edit_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE and ghost:
+		cancel_ghost()
+		get_viewport().set_input_as_handled()
+	elif event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_RIGHT:
+			cancel_ghost()
+			get_viewport().set_input_as_handled()
+		elif event.button_index == MOUSE_BUTTON_LEFT:
+			get_viewport().set_input_as_handled()
+			if ghost:
+				place_ghost(_ghost_origin())
+			else:
+				pick_up(furniture_at(mouse_world()))
+
+
+## 든 가구를 o(그림 왼쪽 위)에 놓아요.
+func place_ghost(o: Vector2) -> bool:
+	if ghost == null:
+		return false
+	if not can_place(ghost_id, o, ghost_from):
+		Audio.sfx("fail")
+		GameState.toast.emit("여기에는 놓을 수 없어요. 바닥 위, 다른 가구와 문에서 떨어진 곳에 놓아요.")
+		return false
+	if ghost_from >= 0:
+		GameState.placed[ghost_from] = {"id": ghost_id, "x": o.x, "y": o.y}
+	else:
+		GameState.furn_inv[ghost_id] = int(GameState.furn_inv.get(ghost_id, 0)) - 1
+		if GameState.furn_inv[ghost_id] <= 0:
+			GameState.furn_inv.erase(ghost_id)
+		GameState.placed.append({"id": ghost_id, "x": o.x, "y": o.y})
+	cancel_ghost()
+	rebuild_furniture()
+	Audio.sfx("coin")
+	GameState.changed.emit()
+	GameState.save_game()
+	main.hud.refresh_decor_bar()
+	return true
+
+
+## 놓은 가구를 다시 들어요(옮기거나, 가방에 넣기).
+func pick_up(i: int) -> void:
+	if i < 0:
+		return
+	if furniture_busy(i):
+		Audio.sfx("fail")
+		GameState.toast.emit("손님이 앉아 있어서 옮길 수 없어요.")
+		return
+	hold(GameState.placed[i].id, i)
+	furn_nodes[i].modulate.a = 0.3
+
+
+## 들고 있던 놓인 가구를 가방에 넣어요.
+func store_held() -> void:
+	if ghost == null:
+		return
+	if ghost_from >= 0:
+		GameState.placed.remove_at(ghost_from)
+	GameState.furn_inv[ghost_id] = int(GameState.furn_inv.get(ghost_id, 0)) + (1 if ghost_from >= 0 else 0)
+	cancel_ghost()
+	rebuild_furniture()
+	GameState.changed.emit()
+	GameState.save_game()
+	main.hud.refresh_decor_bar()
 
 
 func _table_hit(a: Dictionary, p: Vector2) -> bool:

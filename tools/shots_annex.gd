@@ -12,13 +12,25 @@ func _ready():
 	main.goto("village")
 	await _wait(0.5)
 	main.current._shop("furniture"); await _wait(0.4); await _shot("a2_furniture_shop")
-	for i in 4:
-		GameState.annex_tables += 1
-		main.hall.add_annex_set()
-	GameState.decor = 2
-	main.hall.add_decor(); main.hall.add_decor()
 	main.hud.close_panel()
+	GameState.furn_inv = {"table_set": 4, "plant_big": 1, "plant_small": 2}
 	main.goto("hall", "village")
+	await _wait(0.3)
+	var h = main.hall
+	h.player.position = Vector2(1600 + 900, 600)
+	await _wait(1.0)
+	main.hud.toggle_decor(); await _wait(0.3)
+	h.hold("table_set"); h.ghost.position = Vector2(1600 + 1300, 120); h._ghost_follow()
+	await _wait(0.2); await _shot("a2b_decor_mode")
+	for i in 4:
+		h.hold("table_set"); h.place_ghost(h.ANNEX_SLOTS[i] + Vector2(1600, 0))
+	h.hold("plant_big"); print("plant: ", h.place_ghost(Vector2(1600 + 2150, 440)))
+	h.hold("plant_small"); print("plant2: ", h.place_ghost(Vector2(1600 + 1000, 520)))
+	h.hold("plant_small"); print("plant hall: ", h.place_ghost(Vector2(300, 560)))
+	await _wait(0.3); await _shot("a2c_decor_placed")
+	main.hud.toggle_decor()
+	print("tables=", GameState.annex_tables, " decor=", GameState.decor, " inv=", GameState.furn_inv)
+	h.player.position = Vector2(800, 640)
 	await _wait(0.3)
 	main.hall.walk_player(Vector2(1600 + 600, 600))
 	await _wait(6.0); await _shot("a3_walk_to_annex")

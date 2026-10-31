@@ -321,49 +321,40 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _furniture_shop() -> void:
-	var hall = main.hall
-	var set_price := 300 + GameState.annex_tables * 100
-	var entries := [
-		{"icon": Sprites.tex("furniture/table_set"), "name": "둥근 탁자 세트", "price": set_price,
-			"note": "가게 별관에 놓여요. 손님 두 명이 더 앉을 수 있어요. (%d/%d)" % [GameState.annex_tables, GameState.ANNEX_MAX],
-			"block": func(): return "자리가 꽉 찼어요" if GameState.annex_tables >= GameState.ANNEX_MAX else "",
-			"buy": func():
-				GameState.annex_tables += 1
-				hall.add_annex_set()
-				GameState.toast.emit("별관에 탁자를 놓았어요! 가게 안쪽 오른쪽 문으로 가 봐요.")},
-	]
-	if GameState.annex_tables > 0:
-		var back := (300 + (GameState.annex_tables - 1) * 100)
-		entries.append({"icon": Sprites.tex("furniture/table_set"), "name": "탁자 세트 되팔기", "price": 0,
-			"note": "별관의 마지막 탁자를 %d골드에 팔아요. (산 값의 30%%)" % main.hud.sell_price(back),
-			"block": func(): return "",
-			"buy": func():
-				if hall.remove_annex_set():
-					GameState.earn(main.hud.sell_price(back))
-					GameState.toast.emit("탁자 세트를 팔았어요.")
-				else:
-					GameState.toast.emit("손님이 앉아 있거나 지저분한 탁자는 팔 수 없어요.")})
-	main.hud.open_store("다람쥐 가구점", "산 가구는 가게 별관에 바로 놓여요. 되팔면 산 값의 30%를 받아요.", entries)
+	_furn_store("다람쥐 가구점", ["table_set"], 8)
 
 
 ## 인테리어점: 화분처럼 가게를 꾸미는 물건(벽지·바닥은 새 그림이 오면 더해요).
 func _interior_shop() -> void:
-	var hall = main.hall
-	var entries := [
-		{"icon": Sprites.tex("items/deco_plant_big"), "name": "큰 화분", "price": 150,
-			"note": "가게가 예뻐져서 손님이 더 자주 오고 팁이 늘어요.",
-			"block": func(): return "이미 놓았어요" if GameState.decor >= 1 else "",
+	_furn_store("다람쥐 인테리어점", ["plant_big", "plant_small"], GameState.DECOR_MAX)
+
+
+## 산 가구는 가방에 들어가요. 가게 홀에서 꾸미기(B)를 눌러 직접 놓아요.
+func _furn_store(title: String, ids: Array, cap: int) -> void:
+	var entries := []
+	for id in ids:
+		var f: Dictionary = GameState.FURNITURE[id]
+		var own := GameState.owned_furniture(id)
+		var bag := int(GameState.furn_inv.get(id, 0))
+		var effect := "손님 두 명이 더 앉을 수 있어요." if f.kind == "table" else "가게가 예뻐져서 손님이 더 자주 오고 팁이 늘어요."
+		entries.append({"icon": Sprites.tex(f.icon), "name": f.name, "price": f.price,
+			"note": "%s  가진 것 %d개 (놓은 것 %d · 가방 %d)" % [effect, own, own - bag, bag],
+			"block": func(): return "더는 못 사요 (%d개까지)" % cap if GameState.owned_furniture(id) >= cap else "",
 			"buy": func():
-				GameState.decor = 1
-				hall.add_decor()},
-		{"icon": Sprites.tex("items/deco_plant"), "name": "작은 화분", "price": 100,
-			"note": "큰 화분을 놓은 다음에 놓을 수 있어요. 효과는 같아요.",
-			"block": func(): return "이미 놓았어요" if GameState.decor >= 2 else ("큰 화분 먼저" if GameState.decor < 1 else ""),
-			"buy": func():
-				GameState.decor = 2
-				hall.add_decor()},
-	]
-	main.hud.open_store("다람쥐 인테리어점", "가게가 예뻐지면 손님이 더 자주 오고 팁이 늘어요.", entries)
+				GameState.furn_inv[id] = int(GameState.furn_inv.get(id, 0)) + 1
+				GameState.toast.emit("%s을(를) 가방에 넣었어요. 가게에서 꾸미기(B)를 눌러 놓아요." % f.name)})
+		if bag > 0:
+			var back: int = main.hud.sell_price(f.price)
+			entries.append({"icon": Sprites.tex(f.icon), "name": "%s 되팔기" % f.name, "price": 0,
+				"note": "가방에 있는 것(안 놓은 것)을 %d골드에 팔아요. (산 값의 30%%)" % back,
+				"block": func(): return "",
+				"buy": func():
+					GameState.furn_inv[id] = int(GameState.furn_inv.get(id, 0)) - 1
+					if GameState.furn_inv[id] <= 0:
+						GameState.furn_inv.erase(id)
+					GameState.earn(back)
+					GameState.toast.emit("%s을(를) 팔았어요." % f.name)})
+	main.hud.open_store(title, "산 가구는 가방에 들어가요. 가게 안에서 꾸미기(B)를 눌러 원하는 자리에 직접 놓아요.", entries)
 
 
 ## 그릇 가게: 예쁜 그릇 세트를 사면 음식이 더 맛있어 보여서 팁이 늘어요.

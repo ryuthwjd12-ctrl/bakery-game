@@ -183,7 +183,7 @@ var stats := {"served": 0, "monsters": 0}
 var waiter_tired := 0.0  # 가 본 다른 마을(그 마을 동물이 손님으로 놀러 와요)
 
 const SAVE_KEYS := ["hero", "gold", "day", "inv", "stock", "known", "oven", "rep", "has_waiter", "tutorial",
-	"annex_tables", "decor", "hp", "mp", "weapons", "weapon", "quests_done", "boss_done", "visited", "dishes", "friends", "goals_done", "stats", "made", "minutes", "place", "shop_open"]
+	"annex_tables", "decor", "hp", "mp", "weapons", "weapon", "quests_done", "boss_done", "visited", "dishes", "friends", "goals_done", "stats", "made", "minutes", "place", "shop_open", "furn_inv", "placed"]
 ## 무기: 근접(melee)은 앞으로 휘두르고, 마법(magic)은 반짝이를 쏘며 마나를 써요. 비쌀수록 세요.
 const WEAPONS := {
 	"spatula": {"name": "나무 뒤집개", "type": "melee", "power": 5, "price": 0, "icon": "items/w_spatula"},
@@ -199,8 +199,20 @@ const WEAPONS := {
 const VILLAGE_ANIMAL := {"village": ["sq1", "sq2", "sq3", "sq4", "sq5", "sq6"],
 	"petal_hill": ["rb1", "rb2", "rb3", "rb4"], "seashell_beach": ["ct1", "ct2", "ct3", "ct4"],
 	"apple_orchard": ["dr1", "dr2", "dr3", "dr4"], "snowflake_village": ["pg1", "pg2", "pg3", "pg4"]}
-const ANNEX_MAX := 4
-const DECOR_MAX := 2
+const ANNEX_MAX := 6
+const DECOR_MAX := 8
+## 사서 가게에 직접 놓는 가구. foot는 그림 왼쪽 위 기준 바닥에 닿는 자리(걸을 수 없게 막아요).
+## kind: table(손님 두 명이 앉아요), decor(가게가 예뻐져서 손님이 자주 오고 팁이 늘어요)
+const FURNITURE := {
+	"table_set": {"name": "둥근 탁자 세트", "price": 300, "tex": "furniture/table_set", "icon": "furniture/table_set", "kind": "table",
+		"foot": [Vector2(6, 100), Vector2(76, 195), Vector2(146, 210), Vector2(261, 178), Vector2(256, 30), Vector2(196, 2), Vector2(76, 2), Vector2(6, 30)]},
+	"plant_big": {"name": "큰 화분", "price": 150, "tex": "furniture/plant_big", "icon": "items/deco_plant_big", "kind": "decor",
+		"foot": [Vector2(18, 150), Vector2(84, 150), Vector2(84, 192), Vector2(18, 192)]},
+	"plant_small": {"name": "작은 화분", "price": 100, "tex": "furniture/plant_small", "icon": "items/deco_plant", "kind": "decor",
+		"foot": [Vector2(16, 100), Vector2(80, 100), Vector2(80, 131), Vector2(16, 131)]},
+}
+var furn_inv := {}  # 사 두고 아직 안 놓은 가구 {id: 개수}
+var placed: Array = []  # 놓은 가구 [{"id", "x", "y"}] (가게 홀 좌표, 그림 왼쪽 위)
 
 
 func new_game(h: String) -> void:
@@ -219,6 +231,8 @@ func new_game(h: String) -> void:
 	tutorial = {}
 	annex_tables = 0
 	decor = 0
+	furn_inv = {}
+	placed = []
 	hp = max_hp()
 	mp = max_mp()
 	weapons = ["spatula"]
@@ -398,6 +412,15 @@ func is_open() -> bool:
 
 func item_name(id: String) -> String:
 	return ITEMS[id].name
+
+
+## 놓은 가구 수(종류별)
+func placed_count(kind: String) -> int:
+	return placed.filter(func(p): return FURNITURE[p.id].kind == kind).size()
+
+
+func owned_furniture(id: String) -> int:
+	return int(furn_inv.get(id, 0)) + placed.filter(func(p): return p.id == id).size()
 
 
 func count_stock(id: String) -> int:
@@ -634,6 +657,8 @@ func load_game() -> bool:
 	made = _ints(data.get("made", {}))
 	place = data.get("place", {})
 	shop_open = data.get("shop_open", true)
+	furn_inv = _ints(data.get("furn_inv", {}))
+	placed = data.get("placed", [])
 	_reset_day()
 	minutes = float(data.get("minutes", DAY_START))
 	# 예전 저장 파일에서 오븐에 있던 건 진열대로 옮겨요
