@@ -2,3 +2,4 @@
 *.import.tmp
 export/
 __pycache__/
+.idea/
