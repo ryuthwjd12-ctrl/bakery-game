@@ -35,6 +35,7 @@ const KITCHEN_SPOT := Vector2(650, 470)  # 계산대 옆(주방 들어가는 곳
 const ANNEX_DOOR := Vector2(945, 352)  # 안쪽 오른쪽 문 → 별관
 const HALL_ENTRY := Vector2(962, 382)  # 별관에서 돌아오면 서는 곳
 const CASE_SPOT := Vector2(420, 585)  # 진열장 앞
+const MENU_BOARD := Rect2(565, 232, 110, 170)  # 그림 속 칠판 메뉴판(누르면 오늘의 메뉴)
 ## 그림 속 의자: 앉는 자리, 탁자 위 음식 자리, 다가가서 설 자리, 왼쪽을 보는지
 const SEATS := [
 	{"seat": Vector2(728, 478), "food": Vector2(786, 462), "stand": Vector2(738, 600), "left": false},
@@ -282,8 +283,6 @@ func _actions() -> Array:
 			out.append({"pos": t.interact_point(), "r": 60.0, "text": "주문 받기", "do": _take_order.bind(t)})
 		elif t.state == "waiting":
 			out.append({"pos": t.interact_point(), "r": 60.0, "text": "음식 내주기", "do": _serve.bind(t)})
-		elif t.state == "empty" and t.dirty:
-			out.append({"pos": t.interact_point(), "r": 60.0, "text": "치우기", "do": _clean.bind(t)})
 	out.append({"pos": KITCHEN_SPOT, "r": 50.0, "text": "주방으로", "do": func(): main.goto("kitchen", "hall"), "door": true})
 	out.append({"pos": DOOR, "r": 50.0, "text": "밖으로", "do": func(): main.goto("village", "hall"), "door": true})
 	out.append({"pos": ANNEX_DOOR, "r": 50.0, "text": "별관으로", "do": _to_annex, "door": true})
@@ -350,6 +349,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		var p: Vector2 = get_viewport().get_canvas_transform().affine_inverse() * event.position
 		pending = null
+		if MENU_BOARD.has_point(p):
+			main.hud.open_menu_board()
+			get_viewport().set_input_as_handled()
+			return
 		for a in _actions():
 			if a.pos.distance_to(p) < 90 or _table_hit(a, p):
 				pending = a
@@ -375,18 +378,19 @@ func _take_order(t) -> void:
 	t.take_order()
 
 
+## 주문 순서와 상관없이, 이 손님이 시킨 메뉴 중 진열대에 있는 걸 모두 내줘요.
 func _serve(t) -> void:
-	if GameState.orders.is_empty() or GameState.orders[0] != t:
-		GameState.toast.emit("먼저 주문한 손님부터 드려요!")
-		_point_at(GameState.orders[0] if not GameState.orders.is_empty() else null)
+	var gave := 0
+	for id in t.wanted():
+		if t.state == "waiting" and GameState.take_stock(id):
+			_fly_item(id, player.position + Vector2(0, -90), t.position + t.food_at)
+			t.serve(id)
+			gave += 1
+	if gave == 0:
+		var names := ", ".join(t.wanted().map(func(i): return GameState.item_name(i)))
+		GameState.toast.emit("%s이(가) 아직 없어요. 주방에서 만들어요." % names)
+		_point_at(t)
 		Audio.sfx("fail")
-		return
-	if not GameState.take_stock(t.order):
-		GameState.toast.emit("아직 만든 음식이 없어요. 주방에서 만들어요.")
-		Audio.sfx("fail")
-		return
-	_fly_item(t.order, player.position + Vector2(0, -110), t.position + t.food_at)
-	t.serve()
 
 
 func _point_at(t) -> void:
@@ -430,22 +434,60 @@ func _spawn_tick(delta: float) -> void:
 	var base := lerpf(34.0, 16.0, GameState.cleanliness / 100.0) - GameState.level() * 1.5 \
 		- GameState.annex_tables * 2.0 - GameState.decor * 2.0 + (6.0 if GameState.rain else 0.0)
 	spawn_left = maxf(10.0, base) + randf() * 6.0
-	var free := tables.filter(func(t): return t.state == "empty" and not t.dirty)
+	var free := tables.filter(func(t): return t.state == "empty" and t.foods.is_empty())
 	if free.is_empty():
 		return
-	var t = free.pick_random()
+	# 혼자 오기도 하고, 둘이 같이 오기도 하고, 가끔은 네 명이 우르르 와요(한 탁자에 둘씩)
+	var roll := randf()
+	var size := 1 if roll < 0.5 else (2 if roll < 0.88 else 4)
+	var group: Array = _pick_seats(free, size)
+	if group.is_empty():
+		group = [free.pick_random()]
+	if group.size() > 1:
+		GameState.toast.emit("손님 %d명이 같이 왔어요!" % group.size())
+	for i in group.size():
+		_send_customer(group[i], i * 0.5, i == 0)
+
+
+## 같은 탁자에 붙은 빈자리를 size개 골라요(둘씩 짝지어).
+func _pick_seats(free: Array, size: int) -> Array:
+	if size == 1:
+		return [free.pick_random()]
+	var pairs: Array = []
+	for a in free:
+		for b in free:
+			# 두 자리의 음식 자리가 가까우면 같은 탁자예요
+			if a.get_instance_id() < b.get_instance_id() and (a.position + a.food_at).distance_to(b.position + b.food_at) < 90.0:
+				pairs.append([a, b])
+	pairs.shuffle()
+	var out: Array = []
+	for p in pairs:
+		if out.size() >= size:
+			break
+		if not out.has(p[0]) and not out.has(p[1]):
+			out.append_array(p)
+	return out if out.size() >= 2 else []
+
+
+func _send_customer(t, delay: float, can_quest: bool) -> void:
 	t.reserve()
+	if delay > 0.0:
+		await get_tree().create_timer(delay).timeout
 	var kind: String = GameState.customer_kind()
-	var order: String = GameState.menu_now().pick_random()
+	# 메뉴는 하나, 가끔 둘(음료 + 빵처럼)
+	var menu: Array = GameState.menu_now()
+	var order: Array = [menu.pick_random()]
+	if randf() < 0.35 and menu.size() > 1:
+		order.append(menu.pick_random())
 	# 가끔 부탁 손님이 와요 (하루 한 번, 오전 10시 이후)
 	var qid := ""
 	var q := GameState.next_quest()
-	if not q.is_empty() and not GameState.quest_seen_today and GameState.active_quest == "" \
+	if can_quest and not q.is_empty() and not GameState.quest_seen_today and GameState.active_quest == "" \
 			and GameState.minutes > GameState.DAY_START + 60 and randf() < 0.5:
 		GameState.quest_seen_today = true
 		qid = q.id
 		kind = q.kind
-		order = q.dish
+		order = [q.dish]
 	GameState.customer_spawned.emit(kind)
 	var a := _new_customer(kind)
 	a.position = _door_for(t)
@@ -495,22 +537,22 @@ func reset_day() -> void:
 		t.state = "empty"
 		t.animal.visible = false
 		t.bubble.visible = false
-		t.food.visible = false
+		t.clear_plates()
 		t.busy = false
 		t.dirty = false
 		t.dust.queue_redraw()
 	update_cleanliness()
 	spawn_left = 3.0
-	player.position = Vector2(800, 640)
 
 
 # 알바생이 쓰는 함수들
 func find_serve_job():
-	if GameState.orders.is_empty():
-		return null
-	var t = GameState.orders[0]
-	if not t.busy and GameState.stock.get(t.order, 0) > 0:
-		return t
+	for t in GameState.orders:
+		if not is_instance_valid(t) or t.busy:
+			continue
+		for id in t.wanted():
+			if GameState.stock.get(id, 0) > 0:
+				return t
 	return null
 
 
@@ -521,8 +563,6 @@ func find_order_job():
 	return null
 
 
+## 손님이 떠나면 접시가 저절로 치워져서 알바생이 치울 일은 없어요.
 func find_clean_job():
-	for t in tables:
-		if t.dirty and t.state == "empty" and not t.busy:
-			return t
 	return null

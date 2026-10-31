@@ -1,5 +1,5 @@
 extends Node2D
-## 주인공. 방향키/WASD로 걷고, 바닥이나 손님을 클릭하면 그쪽으로 걸어가요.
+## 주인공. 방향키/WASD로 걷고(Shift를 누르면 달려요), 바닥이나 손님을 클릭하면 그쪽으로 걸어가요.
 
 signal arrived
 
@@ -14,6 +14,10 @@ var waypoints: Array = []
 var base_scale := 1.0
 var _work_t := 0.0
 var _idle_t := 0.0
+var _step_t := 0.0
+var running := false
+const RUN := 1.7
+var shadow := Node2D.new()
 
 
 func setup(hero: String, scale_f: float) -> void:
@@ -23,6 +27,10 @@ func setup(hero: String, scale_f: float) -> void:
 	sprite.scale = Vector2(scale_f, scale_f)
 	base_scale = scale_f
 	sprite.animation = "front"
+	# 발밑 그림자: 바닥에 붙어 있는 느낌이 나요
+	var sw := Sprites.frame_height(hero + "_front") * scale_f * 0.22
+	shadow.draw.connect(func(): shadow.draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, 0.36)); shadow.draw_circle(Vector2.ZERO, sw, Color(0.25, 0.15, 0.08, 0.22)))
+	add_child(shadow)
 	add_child(sprite)
 	speed = 200.0 + 60.0 * scale_f
 
@@ -64,13 +72,22 @@ func _process(delta: float) -> void:
 	if v == Vector2.ZERO:
 		sprite.stop()
 		sprite.frame = 0
+		sprite.position = Vector2.ZERO
+		sprite.skew = 0.0
 		# 서 있을 때 숨쉬듯 살짝
 		_idle_t += delta
 		sprite.scale = Vector2(base_scale, base_scale * (1.0 + sin(_idle_t * 2.2) * 0.012))
 		return
-	sprite.scale = Vector2(base_scale, base_scale)
+	running = Input.is_key_pressed(KEY_SHIFT)
+	sprite.speed_scale = 1.6 if running else 1.0
+	# 걸을 때 통통 튀고 살짝 기울어요(달리면 더 크게)
+	_step_t += delta * (16.0 if running else 11.0)
+	var bob := absf(sin(_step_t)) * base_scale * Sprites.frame_height("%s_front" % GameState.hero) * (0.035 if running else 0.022)
+	sprite.position = Vector2(0, -bob)
+	sprite.scale = Vector2(base_scale * (1.0 + bob * 0.002), base_scale * (1.0 - bob * 0.002))
 	v = v.normalized()
-	var step := v * speed * delta
+	sprite.skew = -v.x * (0.08 if running else 0.04)
+	var step := v * speed * (RUN if running else 1.0) * delta
 	step.y *= 0.8  # 비스듬한 바닥이라 위아래는 조금 느리게
 	if target != null and step.length() > (target - position).length():
 		step = target - position

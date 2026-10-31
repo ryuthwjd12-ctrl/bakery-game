@@ -24,13 +24,9 @@ func _ready():
 		for t in main.hall.tables:
 			if t.state == "ordering":
 				t.take_order()
-		if not GameState.orders.is_empty():
-			var t = GameState.orders[0]
-			if GameState.take_stock(t.order):
-				t.serve()
-		for t in main.hall.tables:
-			if t.dirty and t.state == "empty":
-				t.clean()
+		# 순서와 상관없이 있는 메뉴부터 내줘요
+		for t in GameState.orders.duplicate():
+			main.hall._serve(t)
 	print("gold=", GameState.gold, " rep=", GameState.rep, " stock=", GameState.stock, " served=", GameState.today)
 	GameState.save_game()
 	var g = GameState.gold

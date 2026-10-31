@@ -24,6 +24,8 @@ var player_down := false
 var near = null
 var mp_regen := 0.0
 var boss = null
+var aim := Vector2.RIGHT  # 이번 공격이 향하는 방향(8방향이 아니라 마우스 쪽 그대로)
+var use_mouse_aim := true  # 테스트에서는 꺼요
 var snow_cd := 3.0
 var overlays := {}
 var residents: Array = []
@@ -233,12 +235,36 @@ func hurt_player(dmg: int, dir: Vector2) -> void:
 func _faint() -> void:
 	player_down = true
 	player.active = false
-	player.sprite.rotation = PI / 2
+	player.posing = true
+	# 비틀비틀하다 옆으로 털썩 쓰러지고, 머리 위로 별이 빙글빙글 돌아요
+	var sp: AnimatedSprite2D = player.sprite
+	sp.stop()
+	var tw := sp.create_tween()
+	tw.tween_property(sp, "rotation", -0.25, 0.12)
+	tw.tween_property(sp, "rotation", 0.25, 0.14)
+	tw.tween_property(sp, "rotation", PI / 2 * (-1.0 if sp.flip_h else 1.0), 0.28).set_ease(Tween.EASE_IN)
+	tw.parallel().tween_property(sp, "position:y", 6.0, 0.28)
+	tw.tween_property(sp, "scale", sp.scale * Vector2(1.05, 0.92), 0.08)
+	tw.tween_property(sp, "scale", sp.scale, 0.1)
+	var stars := Node2D.new()
+	stars.position = Vector2(0, -30)
+	stars.z_index = 80
+	stars.draw.connect(func():
+		var t := Time.get_ticks_msec() * 0.004
+		for i in 3:
+			var p := Vector2(cos(t + i * TAU / 3) * 22, sin(t + i * TAU / 3) * 7)
+			stars.draw_circle(p, 4, Color("#FFD966"))
+			stars.draw_line(p - Vector2(6, 0), p + Vector2(6, 0), Color("#FFD966"), 2)
+			stars.draw_line(p - Vector2(0, 6), p + Vector2(0, 6), Color("#FFD966"), 2))
+	player.add_child(stars)
+	var spin := stars.create_tween().set_loops()
+	spin.tween_callback(stars.queue_redraw).set_delay(0.03)
+	Audio.sfx("hurt", 0.7)
 	var lost := int(GameState.gold * 0.1)
 	GameState.gold -= lost
 	GameState.hp = GameState.max_hp() / 2
 	main.hud.show_toast("쓰러졌어요… 숲속 친구들이 가게까지 데려다줬어요. (%d골드를 잃었어요)" % lost)
-	await get_tree().create_timer(1.6).timeout
+	await get_tree().create_timer(2.4).timeout
 	main.goto("hall", "village")
 
 
@@ -363,7 +389,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton and event.pressed:
 		var to: Vector2 = get_viewport().get_canvas_transform().affine_inverse() * event.position
 		if event.button_index == MOUSE_BUTTON_RIGHT:
-			facing = _dir4(to - player.position)
 			attack()
 		elif event.button_index == MOUSE_BUTTON_LEFT:
 			UI.ripple(self, to, 14.0)
@@ -384,6 +409,13 @@ func attack() -> void:
 		GameState.mp -= w.mp
 		GameState.changed.emit()
 	attack_cd = 0.45 if w.type == "melee" else 0.6
+	# 마우스가 가리키는 쪽으로 공격해요(마법은 그 방향으로 곧게 날아가요). 마우스를 안 쓰면 보는 방향으로.
+	aim = facing
+	if Input.get_mouse_mode() == Input.MOUSE_MODE_VISIBLE and get_viewport().get_visible_rect().has_point(get_viewport().get_mouse_position()) and use_mouse_aim:
+		var to: Vector2 = get_global_mouse_position() - (player.position + Vector2(0, -50))
+		if to.length() > 8.0:
+			aim = to.normalized()
+			facing = _dir4(aim)
 	attacking = true
 	player.posing = true
 	player.target = null
@@ -401,8 +433,8 @@ func attack() -> void:
 		_swing_fx(w)
 		for m in monsters.duplicate():
 			var d: Vector2 = m.position - player.position
-			var reach := 80.0 if not m.boss else 120.0
-			if d.length() < reach and (d.normalized().dot(facing) > 0.1 or d.length() < 30):
+			var reach := 62.0 if not m.boss else 110.0
+			if d.length() < reach and (d.normalized().dot(aim) > 0.3 or d.length() < 24):
 				m.hit(w.power, player.position)
 	else:
 		Audio.sfx("magic", randf_range(0.95, 1.1))
@@ -419,9 +451,9 @@ func attack() -> void:
 
 func _swing_fx(w: Dictionary) -> void:
 	var arc := Node2D.new()
-	arc.position = player.position + Vector2(0, -40) + facing * 30
+	arc.position = player.position + Vector2(0, -40) + aim * 30
 	arc.z_index = 70
-	var ang := facing.angle()
+	var ang := aim.angle()
 	arc.draw.connect(func():
 		arc.draw_arc(Vector2.ZERO, 34, ang - 1.0, ang + 1.0, 14, Color(1, 1, 1, 0.85), 6)
 		arc.draw_arc(Vector2.ZERO, 26, ang - 0.8, ang + 0.8, 12, Color(1, 0.9, 0.6, 0.7), 3))
@@ -431,10 +463,11 @@ func _swing_fx(w: Dictionary) -> void:
 	tw.tween_callback(arc.queue_free)
 
 
-## 마법: 반짝이가 앞으로 날아가다 처음 닿은 몬스터를 맞혀요.
+## 마법: 반짝이가 겨눈 방향으로 곧게 날아가다 처음 닿은 몬스터를 맞혀요(따라가지 않아요).
 func _shoot(w: Dictionary) -> void:
+	var dir := aim
 	var s := Node2D.new()
-	s.position = player.position + Vector2(0, -50) + facing * 20
+	s.position = player.position + Vector2(0, -50) + dir * 20
 	s.z_index = 70
 	s.draw.connect(func():
 		for i in 4:
@@ -448,11 +481,11 @@ func _shoot(w: Dictionary) -> void:
 		if not is_instance_valid(s):
 			return
 		var step := 520.0 * get_process_delta_time()
-		s.position += facing * step
+		s.position += dir * step
 		dist += step
 		s.queue_redraw()
 		for m in monsters.duplicate():
-			if is_instance_valid(m) and (m.position + Vector2(0, -30)).distance_to(s.position) < (34.0 if not m.boss else 80.0):
+			if is_instance_valid(m) and (m.position + Vector2(0, -30)).distance_to(s.position) < (22.0 if not m.boss else 70.0):
 				m.hit(w.power, s.position)
 				s.queue_free()
 				return

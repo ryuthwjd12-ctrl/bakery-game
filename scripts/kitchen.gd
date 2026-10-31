@@ -1,6 +1,6 @@
 extends Control
 ## 주방 화면. 그릇장·냉장고·냉동고·찬장을 눌러 재료와 그릇을 고르면 아래 조합 칸으로 날아가요.
-## "굽기"를 누르면 맞는 조합일 때 오븐에 들어가거나 바로 완성돼요. 좌표는 주방 그림(1408x768) 기준이에요.
+## "굽기"(음료는 "만들기")를 누르면 맞는 조합일 때 바로 완성돼서 진열대에 놓여요. 좌표는 주방 그림(1408x768) 기준이에요.
 
 var main: Node
 
@@ -32,7 +32,8 @@ var ghost_icons: Array = []
 var furn_sprites := {}
 var popup: PanelContainer
 var popup_kind := ""
-var oven_box: VBoxContainer
+var catcher: Control  # 창 바깥을 누르면 닫히게 깔아 두는 투명한 판
+var ok_l: Label
 var oven_glow: ColorRect
 var msg_l: Label
 var _t := 0.0
@@ -57,7 +58,16 @@ func _ready() -> void:
 		var b := UI.hotspot(HOTSPOTS[k], _open_storage.bind(k))
 		b.mouse_entered.connect(_hover.bind(k, true))
 		b.mouse_exited.connect(_hover.bind(k, false))
+		b.tooltip_text = GameState.STORAGE[k].name
 		add_child(b)
+	# 냉장고는 위 칸(냉동고)과 아래 칸(냉장고)을 따로 눌러요: 문마다 이름표를 붙여 둬요
+	for k in ["freezer", "fridge"]:
+		var r: Rect2 = HOTSPOTS[k]
+		var tag := UI.label(GameState.STORAGE[k].name, 16, Color("#4A7A99"))
+		tag.add_theme_stylebox_override("normal", UI.box(Color(1, 1, 1, 0.85), Color(PANEL_STYLE[k][1]), 8, 2))
+		tag.position = r.position + Vector2(r.size.x - 86, r.size.y - 34)
+		tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(tag)
 
 	oven_glow = ColorRect.new()
 	oven_glow.position = OVEN_MOUTH.position
@@ -84,6 +94,7 @@ func _ready() -> void:
 		add_child(UI.hotspot(r, _remove_slot.bind(i)))
 
 	var ok := UI.label("굽기", 28)
+	ok_l = ok
 	ok.position = OK_RECT.position
 	ok.size = OK_RECT.size
 	ok.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -105,13 +116,6 @@ func _ready() -> void:
 		_clear_slots())
 	add_child(clear)
 
-	var oven_panel := PanelContainer.new()
-	oven_panel.add_theme_stylebox_override("panel", UI.box(Color(1, 0.97, 0.9, 0.92), UI.OUTLINE, 14, 2))
-	oven_panel.position = Vector2(1160, 16)
-	oven_panel.custom_minimum_size = Vector2(210, 0)
-	oven_box = VBoxContainer.new()
-	oven_panel.add_child(oven_box)
-	add_child(oven_panel)
 
 	msg_l = UI.label("", 24)
 	msg_l.add_theme_stylebox_override("normal", UI.box(Color("#FFF8E6"), UI.PINK))
@@ -120,9 +124,6 @@ func _ready() -> void:
 	msg_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(msg_l)
 
-	var back := UI.button("← 홀로", func(): main.goto("hall", "kitchen"))
-	back.position = Vector2(16, 470)
-	add_child(back)
 
 	# 받은 부탁이 있으면 위쪽에 스페셜 요리를 보여 줘요
 	if GameState.active_quest != "":
@@ -145,10 +146,9 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	_t += _delta
-	var baking := not GameState.oven.is_empty()
-	if int(_t * 4.0) != int((_t - _delta) * 4.0):
-		_refresh_oven()
-	oven_glow.color.a = (0.18 + 0.08 * sin(_t * 4.0)) if baking else 0.0
+	# 컵이 들어가면 음료라서 "만들기", 아니면 "굽기"
+	ok_l.text = "만들기" if slots.has("mug") else "굽기"
+	oven_glow.color.a = maxf(0.0, oven_glow.color.a - _delta * 0.6)
 
 
 func _hover(k: String, on: bool) -> void:
@@ -180,6 +180,13 @@ func _open_storage(k: String) -> void:
 			return
 	_close_popup()
 	popup_kind = k
+	catcher = Control.new()
+	catcher.size = Vector2(1408, 768)
+	catcher.gui_input.connect(func(ev):
+		if ev is InputEventMouseButton and ev.pressed:
+			_close_popup()
+			accept_event())
+	add_child(catcher)
 	var st: Array = PANEL_STYLE[k]
 	popup = PanelContainer.new()
 	popup.add_theme_stylebox_override("panel", UI.box(Color(st[0]), Color(st[1]), 18, 4))
@@ -242,7 +249,10 @@ func _item_card(id: String) -> Button:
 func _close_popup() -> void:
 	if popup:
 		popup.queue_free()
+	if catcher:
+		catcher.queue_free()
 	popup = null
+	catcher = null
 	popup_kind = ""
 
 
@@ -313,6 +323,8 @@ func _cook(label: Label) -> void:
 	if res.ok:
 		Audio.sfx("sparkle" if res.new else "pick")
 		var dest: Vector2 = OVEN_MOUTH.get_center() if res.bake else Vector2(1300, 700)
+		if res.bake:
+			oven_glow.color.a = 0.45  # 오븐이 확 밝아졌다가 바로 완성돼요
 		for ic in icons:
 			var fly := UI.icon(ic.texture, 70)
 			fly.position = ic.position + Vector2(11, 11)
@@ -356,31 +368,10 @@ func _refresh() -> void:
 		for n in hint.needs:
 			if not slots.has(n):
 				ghosts.append(n)
-	for i in 5:
+	for i in SLOT_X.size():
 		slot_icons[i].texture = Sprites.item(slots[i]) if i < slots.size() else null
 		var gi := i - slots.size()
 		ghost_icons[i].texture = Sprites.item(ghosts[gi]) if gi >= 0 and gi < ghosts.size() else null
-	_refresh_oven()
-
-
-func _refresh_oven() -> void:
-	for c in oven_box.get_children():
-		oven_box.remove_child(c)
-		c.queue_free()
-	oven_box.add_child(UI.label("오븐 %d/%d" % [GameState.oven.size(), GameState.OVEN_SLOTS], 18))
-	for o in GameState.oven:
-		var row := HBoxContainer.new()
-		row.add_child(UI.icon(Sprites.item(o.id), 36))
-		var bar_bg := ColorRect.new()
-		bar_bg.color = Color("#EADFCB")
-		bar_bg.custom_minimum_size = Vector2(130, 10)
-		bar_bg.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		var bar := ColorRect.new()
-		bar.color = Color("#E9A23B")
-		bar.size = Vector2(130.0 * (1.0 - o.left / maxf(o.total, 0.1)), 10)
-		bar_bg.add_child(bar)
-		row.add_child(bar_bg)
-		oven_box.add_child(row)
 
 
 func _unhandled_input(event: InputEvent) -> void:

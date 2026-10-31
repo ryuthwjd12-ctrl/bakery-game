@@ -137,7 +137,14 @@ var minutes := float(DAY_START)
 var inv := {}
 var stock := {}
 var known: Array = []
-var oven: Array = []  # [{id, left, total}]
+var oven: Array = []  # 예전 저장 파일 호환용(지금은 굽기가 바로 끝나요)
+var made := {}  # 메뉴별로 만든 횟수(힌트는 3번까지)
+const HINT_TIMES := 3
+## 저장할 때 있던 곳: {"screen": "hall"/"kitchen"/"village"/"field", "area": 지역 id, "x", "y"}
+var place := {}
+var shop_open := true
+## 저장 직전에 main이 지금 있는 곳을 place에 적어 줘요
+var place_provider: Callable
 var picked_today: Array = []
 var rep := 0
 var has_waiter := false
@@ -176,10 +183,10 @@ var stats := {"served": 0, "monsters": 0}
 var waiter_tired := 0.0  # 가 본 다른 마을(그 마을 동물이 손님으로 놀러 와요)
 
 const SAVE_KEYS := ["hero", "gold", "day", "inv", "stock", "known", "oven", "rep", "has_waiter", "tutorial",
-	"annex_tables", "decor", "hp", "mp", "weapons", "weapon", "quests_done", "boss_done", "visited", "dishes", "friends", "goals_done", "stats"]
+	"annex_tables", "decor", "hp", "mp", "weapons", "weapon", "quests_done", "boss_done", "visited", "dishes", "friends", "goals_done", "stats", "made", "minutes", "place", "shop_open"]
 ## 무기: 근접(melee)은 앞으로 휘두르고, 마법(magic)은 반짝이를 쏘며 마나를 써요. 비쌀수록 세요.
 const WEAPONS := {
-	"spatula": {"name": "나무 뒤집개", "type": "melee", "power": 8, "price": 0, "icon": "items/w_spatula"},
+	"spatula": {"name": "나무 뒤집개", "type": "melee", "power": 5, "price": 0, "icon": "items/w_spatula"},
 	"rolling_pin": {"name": "밀대 몽둥이", "type": "melee", "power": 14, "price": 200, "icon": "items/w_rolling_pin"},
 	"piping_bag": {"name": "크림 짤주머니", "type": "magic", "power": 12, "mp": 4, "price": 300, "icon": "items/w_piping_bag"},
 	"cake_tin": {"name": "케이크 틀 망치", "type": "melee", "power": 22, "price": 550, "icon": "items/w_cake_tin"},
@@ -205,6 +212,7 @@ func new_game(h: String) -> void:
 	stock = {}
 	known = []
 	oven = []
+	made = {}
 	picked_today = []
 	rep = 0
 	has_waiter = false
@@ -260,14 +268,6 @@ func _process(delta: float) -> void:
 	if not clock_running or day_over:
 		return
 	minutes += delta / SECONDS_PER_MINUTE
-	for o in oven:
-		o.left -= delta
-	var done := oven.filter(func(o): return o.left <= 0.0)
-	for o in done:
-		oven.erase(o)
-		add_stock(o.id, 1)
-		Audio.sfx("ding")
-		toast.emit("%s 완성! 진열대에 놓았어요." % item_name(o.id))
 	if minutes >= DAY_END:
 		day_over = true
 		day_ended.emit(today.duplicate())
@@ -391,12 +391,17 @@ func check_goals() -> void:
 			toast.emit("★ 목표 달성: %s  (+%d골드)" % [g[1], g[2]])
 
 
+## 가게 문을 열어 둔 동안만 손님이 와요(가게 아래 버튼으로 열고 닫아요).
 func is_open() -> bool:
-	return minutes < LAST_ORDER and not day_over
+	return shop_open and minutes < LAST_ORDER and not day_over
 
 
 func item_name(id: String) -> String:
 	return ITEMS[id].name
+
+
+func count_stock(id: String) -> int:
+	return int(stock.get(id, 0))
 
 
 func count(id: String) -> int:
@@ -512,9 +517,16 @@ func next_quest() -> Dictionary:
 func hint_recipe() -> Dictionary:
 	if active_quest != "":
 		return recipe(quest(active_quest).dish)
+	# 받은 주문 중 진열대에 아직 없는 메뉴를 먼저 알려 줘요. 세 번 만들어 본 메뉴는 더 안 알려 줘요.
+	var need := {}
 	for t in orders:
-		if is_instance_valid(t) and STARTER.has(t.order):
-			return recipe(t.order)
+		if not is_instance_valid(t):
+			continue
+		for o in t.wanted():
+			need[o] = need.get(o, 0) + 1
+	for o in need:
+		if count_stock(o) < need[o] and STARTER.has(o) and made.get(o, 0) < HINT_TIMES:
+			return recipe(o)
 	if known.is_empty():
 		return recipe("butter_cookie")
 	return {}
@@ -525,8 +537,6 @@ func cook(slots: Array) -> Dictionary:
 	if slots.is_empty():
 		return {"ok": false, "msg": "조합 칸이 비어 있어요.", "empty": true}
 	var r := find_recipe(slots)
-	if not r.is_empty() and ITEMS[r.id].bake > 0.0 and oven.size() >= OVEN_SLOTS:
-		return {"ok": false, "msg": "오븐이 가득 찼어요. 조금만 기다려요.", "empty": true}
 	for s in slots:
 		if ITEMS[s].kind == "ing":
 			inv[s] = count(s) - 1
@@ -538,14 +548,11 @@ func cook(slots: Array) -> Dictionary:
 		known.append(r.id)
 		today.new += 1
 	var name := item_name(r.id)
+	# 오븐에서 기다리지 않고 바로 완성돼서 진열대에 놓여요
 	var bake: bool = ITEMS[r.id].bake > 0.0
-	var msg := ""
-	if bake:
-		oven.append({"id": r.id, "left": ITEMS[r.id].bake, "total": ITEMS[r.id].bake})
-		msg = "%s 반죽을 오븐에 넣었어요." % name
-	else:
-		add_stock(r.id, 1)
-		msg = "%s 완성!" % name
+	add_stock(r.id, 1)
+	made[r.id] = made.get(r.id, 0) + 1
+	var msg := "%s 완성!" % name
 	if first:
 		msg = "새 레시피 발견! " + msg
 	mark_tutorial("cook")
@@ -580,6 +587,8 @@ func tutorial_done() -> bool:
 
 
 func save_game() -> void:
+	if place_provider.is_valid():
+		place = place_provider.call()
 	var data := {}
 	for k in SAVE_KEYS:
 		data[k] = get(k)
@@ -622,7 +631,15 @@ func load_game() -> bool:
 	friends = _ints(data.get("friends", {}))
 	goals_done = data.get("goals_done", [])
 	stats = _ints(data.get("stats", {"served": 0, "monsters": 0}))
+	made = _ints(data.get("made", {}))
+	place = data.get("place", {})
+	shop_open = data.get("shop_open", true)
 	_reset_day()
+	minutes = float(data.get("minutes", DAY_START))
+	# 예전 저장 파일에서 오븐에 있던 건 진열대로 옮겨요
+	for o in oven:
+		add_stock(o.id, 1)
+	oven = []
 	changed.emit()
 	return true
 

@@ -27,38 +27,72 @@ const FOREST_BLOCKS := [
 	[Vector2(350, 430), Vector2(455, 405), Vector2(520, 455), Vector2(515, 525), Vector2(405, 530), Vector2(350, 470)],
 ]
 
-static func forest(name: String, to: String, monsters: Array, tint: Color, entry_side: String) -> Dictionary:
+const NAMES := {"village": "도토리 마을", "petal_hill": "꽃잎 언덕", "seashell_beach": "조개 해변",
+	"apple_orchard": "과일 과수원", "snowflake_village": "눈꽃 마을"}
+
+
+## 숲길: 왼쪽 끝은 left_to, 오른쪽 끝은 right_to로 이어져요.
+## 왼쪽으로 걸어 나오면 다음 지역의 오른쪽에 서도록 방향을 맞춰 둬야 끝없이 오가지 않아요.
+static func forest(name: String, left_to: String, right_to: String, monsters: Array, tint: Color) -> Dictionary:
 	return {
 		"name": name, "bg": "maps/forest_path", "size": Vector2(1408, 768), "zoom": 1.8, "hero": 0.3,
 		"area": FOREST_AREA, "blocks": FOREST_BLOCKS, "tint": tint, "monsters": monsters, "count": 6,
 		"exits": [
-			{"rect": Rect2(-40, 300, 52, 110), "to": "village", "label": "도토리 마을"},
-			{"rect": Rect2(1396, 340, 60, 100), "to": to, "label": ""},
+			{"rect": Rect2(-40, 300, 52, 110), "to": left_to, "label": NAMES.get(left_to, "")},
+			{"rect": Rect2(1396, 340, 60, 100), "to": right_to, "label": NAMES.get(right_to, "")},
 		],
-		"entries": {"village": Vector2(40, 355), to: Vector2(1365, 392)},
-		"village_side": entry_side,
+		"entries": {left_to: Vector2(40, 355), right_to: Vector2(1365, 392)},
 	}
 
 
-## 다른 마을: 마을마다 모양이 달라요. 숲으로 이어지는 길 하나로 들어오고 나가요.
-static func town(name: String, bg: String, forest_id: String, area: Array, blocks: Array, exit: Rect2, entry: Vector2, shop: Dictionary) -> Dictionary:
+## 다른 마을: 마을마다 모양이 달라요. 도토리 마을로 가는 숲길 하나와, 이웃 마을로 가는 오솔길 두 개가 있어요.
+## roads: [[나가는 칸, 오솔길 id, 돌아오면 서는 곳], ...]
+static func town(name: String, bg: String, forest_id: String, area: Array, blocks: Array, exit: Rect2, entry: Vector2, shop: Dictionary, roads := []) -> Dictionary:
+	var exits := [{"rect": exit, "to": forest_id, "label": "도토리 마을 숲길"}]
+	var entries := {forest_id: entry}
+	for r in roads:
+		var other: String = ROADS[r[1]][0] if ROADS[r[1]][1] == _id_of(name) else ROADS[r[1]][1]
+		exits.append({"rect": r[0], "to": r[1], "label": NAMES[other] + " 오솔길"})
+		entries[r[1]] = r[2]
 	return {
 		"name": name, "bg": bg, "size": Vector2(1408, 768), "zoom": 1.7, "hero": 0.28,
-		"area": area, "blocks": blocks, "exits": [{"rect": exit, "to": forest_id, "label": "숲길"}],
-		"entries": {forest_id: entry}, "shop": shop,
+		"area": area, "blocks": blocks, "exits": exits, "entries": entries, "shop": shop,
 	}
+
+
+static func _id_of(name: String) -> String:
+	for k in NAMES:
+		if NAMES[k] == name:
+			return k
+	return ""
+
+
+## 이웃 마을끼리 잇는 오솔길: [왼쪽 끝, 오른쪽 끝, 이름, 몬스터]
+const ROADS := {
+	"road_ne": ["petal_hill", "seashell_beach", "꽃잎–조개 오솔길", ["bee", "slime", "squirrel"]],
+	"road_se": ["seashell_beach", "apple_orchard", "조개–과수원 오솔길", ["slime", "mushroom", "sheep"]],
+	"road_sw": ["snowflake_village", "apple_orchard", "눈꽃–과수원 오솔길", ["sheep", "mushroom", "dragon"]],
+	"road_nw": ["snowflake_village", "petal_hill", "눈꽃–꽃잎 오솔길", ["sheep", "bee", "dragon"]],
+}
 
 
 static func get_area(id: String) -> Dictionary:
 	match id:
 		"forest_north":
-			return forest("북쪽 꽃길 숲", "petal_hill", ["bee", "sheep", "slime"], Color(1, 0.97, 1), "north")
+			return forest("북쪽 꽃길 숲", "village", "petal_hill", ["bee", "sheep", "slime"], Color(1, 0.97, 1))
 		"forest_east":
-			return forest("동쪽 바닷바람 숲", "seashell_beach", ["slime", "mushroom", "squirrel"], Color(1, 1, 1), "east")
+			return forest("동쪽 바닷바람 숲", "village", "seashell_beach", ["slime", "mushroom", "squirrel"], Color(1, 1, 1))
 		"forest_south":
-			return forest("남쪽 과수원 숲", "apple_orchard", ["squirrel", "mushroom", "sheep"], Color(1, 0.98, 0.92), "south")
+			return forest("남쪽 과수원 숲", "village", "apple_orchard", ["squirrel", "mushroom", "sheep"], Color(1, 0.98, 0.92))
 		"forest_west":
-			return forest("서쪽 눈바람 숲", "snowflake_village", ["sheep", "dragon", "mushroom"], Color(0.9, 0.95, 1.06), "west")
+			# 마을 서쪽 끝에서 들어오니 마을은 오른쪽, 눈꽃 마을은 왼쪽이에요
+			# 눈사람 거인은 마을이 아니라 숲 한가운데 공터에 있어요(마을에는 몬스터가 없어요)
+			var fw := forest("서쪽 눈바람 숲", "snowflake_village", "village", ["sheep", "dragon", "mushroom"], Color(0.9, 0.95, 1.06))
+			fw["boss"] = {"pos": Vector2(700, 470), "trigger": 230.0}
+			return fw
+		"road_ne", "road_se", "road_sw", "road_nw":
+			var r: Array = ROADS[id]
+			return forest(r[2], r[0], r[1], r[3], Color(1, 0.99, 0.96))
 		"petal_hill":
 			return town("꽃잎 언덕", "maps/petal_hill", "forest_north", [Vector2(0, 0), Vector2(1408, 0), Vector2(1408, 768), Vector2(0, 768)], [
 					[Vector2(138, 170), Vector2(205, 95), Vector2(307, 70), Vector2(379, 95), Vector2(379, 190), Vector2(307, 215), Vector2(164, 240)],
@@ -79,7 +113,8 @@ static func get_area(id: String) -> Dictionary:
 					[Vector2(1289, 650), Vector2(1408, 650), Vector2(1408, 740), Vector2(1289, 740)],
 					[Vector2(307, 535), Vector2(343, 535), Vector2(343, 630), Vector2(307, 630)],
 				], Rect2(532, 756, 133, 60), Vector2(604, 735),
-				{"npc": "rb1", "look": "petal", "name": "꽃잎 언덕 꿀가게", "items": ["honey_jar", "matcha", "milk"], "pos": Vector2(721, 440)})
+				{"npc": "rb1", "look": "petal", "name": "꽃잎 언덕 꿀가게", "items": ["honey_jar", "matcha", "milk"], "pos": Vector2(721, 440)},
+				[[Rect2(-40, 470, 52, 100), "road_nw", Vector2(70, 520)], [Rect2(1396, 430, 60, 100), "road_ne", Vector2(1338, 480)]])
 		"seashell_beach":
 			return town("조개 해변", "maps/seashell_beach", "forest_east", [Vector2(0, 0), Vector2(1408, 0), Vector2(1408, 285), Vector2(1279, 330), Vector2(1126, 430), Vector2(1003, 520), Vector2(890, 560), Vector2(778, 620), Vector2(665, 690), Vector2(573, 768), Vector2(0, 768)], [
 					[Vector2(128, 90), Vector2(184, 55), Vector2(287, 60), Vector2(348, 110), Vector2(338, 200), Vector2(266, 225), Vector2(153, 215), Vector2(128, 170)],
@@ -104,7 +139,8 @@ static func get_area(id: String) -> Dictionary:
 					[Vector2(1243, 270), Vector2(1300, 270), Vector2(1300, 312), Vector2(1243, 312)],
 					[Vector2(327, 695), Vector2(450, 695), Vector2(450, 768), Vector2(327, 768)],
 				], Rect2(655, -40, 215, 52), Vector2(762, 30),
-				{"npc": "ct1", "look": "beach", "name": "바닷가 생선 가게", "items": ["chocolate", "cream", "matcha"], "pos": Vector2(737, 445)})
+				{"npc": "ct1", "look": "beach", "name": "바닷가 생선 가게", "items": ["chocolate", "cream", "matcha"], "pos": Vector2(737, 445)},
+				[[Rect2(-40, 160, 52, 80), "road_ne", Vector2(70, 200)], [Rect2(1396, 210, 60, 70), "road_se", Vector2(1338, 240)]])
 		"apple_orchard":
 			return town("과일 과수원", "maps/apple_orchard", "forest_south", [Vector2(0, 0), Vector2(1408, 0), Vector2(1408, 768), Vector2(0, 768)], [
 					[Vector2(0, 0), Vector2(604, 0), Vector2(583, 95), Vector2(481, 145), Vector2(389, 190), Vector2(338, 150), Vector2(133, 100), Vector2(61, 150), Vector2(0, 150)],
@@ -135,7 +171,8 @@ static func get_area(id: String) -> Dictionary:
 					[Vector2(655, 768), Vector2(778, 690), Vector2(921, 640), Vector2(1115, 700), Vector2(1126, 768)],
 					[Vector2(1330, 660), Vector2(1408, 640), Vector2(1408, 768), Vector2(1330, 768)],
 				], Rect2(614, -40, 205, 52), Vector2(716, 30),
-				{"npc": "dr1", "look": "orchard", "name": "과일 가판대", "items": ["apple", "peach", "lemon", "grape", "blueberry", "strawberry"], "pos": Vector2(706, 432)})
+				{"npc": "dr1", "look": "orchard", "name": "과일 가판대", "items": ["apple", "peach", "lemon", "grape", "blueberry", "strawberry"], "pos": Vector2(706, 432)},
+				[[Rect2(-40, 480, 52, 80), "road_sw", Vector2(70, 520)], [Rect2(1160, 756, 120, 60), "road_se", Vector2(1220, 700)]])
 		"snowflake_village":
 			var d := town("눈꽃 마을", "maps/snowflake_village", "forest_west", [Vector2(0, 0), Vector2(1408, 0), Vector2(1408, 768), Vector2(0, 768)], [
 					[Vector2(67, 100), Vector2(123, 75), Vector2(338, 75), Vector2(394, 130), Vector2(379, 215), Vector2(307, 245), Vector2(153, 250), Vector2(72, 210)],
@@ -162,8 +199,8 @@ static func get_area(id: String) -> Dictionary:
 					[Vector2(1248, 650), Vector2(1320, 650), Vector2(1320, 700), Vector2(1248, 700)],
 					[Vector2(752, 570), Vector2(849, 575), Vector2(849, 630), Vector2(757, 625)],
 				], Rect2(675, -40, 164, 52), Vector2(757, 30),
-				{"npc": "pg1", "look": "snow", "name": "얼음 수정 상점", "items": ["cream", "milk", "butter"], "pos": Vector2(747, 452)})
-			d["boss"] = {"pos": Vector2(614, 600), "trigger": 230.0}
+				{"npc": "pg1", "look": "snow", "name": "얼음 수정 상점", "items": ["cream", "milk", "butter"], "pos": Vector2(747, 452)},
+				[[Rect2(1396, 170, 60, 60), "road_nw", Vector2(1338, 200)], [Rect2(1396, 290, 60, 60), "road_sw", Vector2(1338, 320)]])
 			return d
 	return {}
 

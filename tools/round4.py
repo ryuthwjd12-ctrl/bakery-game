@@ -1,6 +1,6 @@
 """4차 제미나이 그림(art/raw/44-52)을 게임에 넣어요. python3 tools/round4.py
 - 44 큰 도토리 마을(영어 글자·생성 표시 지움, 1408x768로 맞춤)
-- 45 다람쥐 주민 6마리 x 앞/뒤/옆, 46 다람쥐 가게 주인 5마리
+- 45 다람쥐 주민 6마리 x 앞/뒤/옆(별을 지운 45u.png에서 잘라요), 46 다람쥐 가게 주인 5마리
 - 47-51 가게 안 5곳, 52 새 주방(그릇장·냉장고·찬장은 눌렀을 때 통통 튀도록 따로 잘라요)"""
 import os, sys
 import numpy as np
@@ -101,7 +101,7 @@ for r in ROWS:
     for grp in COLS:
         n += 1
         for (x0, x1), pose in zip(grp, ['front', 'back', 'right']):
-            im = cutout('45.png', (x0, r[0], x1, r[1]), tol=24)
+            im = cutout('45u.png', (x0, r[0], x1, r[1]), tol=24)
             im.save(os.path.join(A, 'animals', 'sq%d_%s.png' % (n, pose)))
             lines.append('\t"sq%d_%s": ["animals/sq%d_%s", %d, %d, 1],' % (n, pose, n, pose, im.width, im.height))
 lines.append('}')

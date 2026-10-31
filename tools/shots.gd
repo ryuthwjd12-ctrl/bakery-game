@@ -46,11 +46,11 @@ func _ready():
 	for t in main.hall.tables:
 		if t.state == "ordering":
 			t.take_order()
-	if not GameState.orders.is_empty():
-		var t0 = GameState.orders[0]
-		GameState.add_stock(t0.order, 1)
-		GameState.take_stock(t0.order)
-		t0.serve()
+	await _wait(0.3); await _shot("13a_orders")
+	for t0 in GameState.orders.duplicate():
+		for id in t0.wanted():
+			GameState.add_stock(id, 1)
+		main.hall._serve(t0)
 	await _wait(2.5); await _shot("13b_eating")
 	main.hud.open_pause(); await _wait(0.4); await _shot("14_pause")
 	main.hud.close_panel(); get_tree().paused = false
