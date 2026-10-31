@@ -6,9 +6,11 @@ func _ready():
 	await get_tree().process_frame
 	main.start("female", false)
 	var h = main.hall
+	GameState.furn_inv["table_set"] = 4
 	for i in 4:
-		GameState.annex_tables += 1
-		h.add_annex_set()
+		h.hold("table_set")
+		print("placed: ", h.place_ghost(h.ANNEX_SLOTS[i] + Vector2(h.ANNEX_X, 0)))
+	print("bad place: ", h.can_place("table_set", Vector2(100, 100)), " overlap: ", h.can_place("table_set", h.ANNEX_SLOTS[0] + Vector2(h.ANNEX_X + 20, 0)))
 	print("walkable spots: ", h.can_walk(h.HALL_ENTRY), h.can_walk(h.ANNEX_ENTRY + Vector2(h.ANNEX_X, 0)),
 		h.can_walk(h.KITCHEN_SPOT), h.can_walk(h.KITCHEN_SPOT + Vector2(30, 60)), h.can_walk(h.DOOR), h.can_walk(h.CASE_SPOT),
 		h.can_walk(Vector2(h.ANNEX_X + 915, 705)), h.can_walk(h.ANNEX_DOOR), h.can_walk(h.ANNEX_BACK + Vector2(h.ANNEX_X, 0)))
@@ -24,13 +26,9 @@ func _ready():
 		for t in main.hall.tables:
 			if t.state == "ordering":
 				t.take_order()
-		if not GameState.orders.is_empty():
-			var t = GameState.orders[0]
-			if GameState.take_stock(t.order):
-				t.serve()
-		for t in main.hall.tables:
-			if t.dirty and t.state == "empty":
-				t.clean()
+		# 순서와 상관없이 있는 메뉴부터 내줘요
+		for t in GameState.orders.duplicate():
+			main.hall._serve(t)
 	print("gold=", GameState.gold, " rep=", GameState.rep, " stock=", GameState.stock, " served=", GameState.today)
 	GameState.save_game()
 	var g = GameState.gold

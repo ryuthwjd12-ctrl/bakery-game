@@ -13,10 +13,12 @@ static var _cache := {}
 
 
 static func has_strip(key: String) -> bool:
-	return SpriteDataR6.STRIPS.has(key) or SpriteDataR5.STRIPS.has(key) or SpriteDataR4.STRIPS.has(key) or SpriteData.STRIPS.has(key) or SpriteDataExtra.STRIPS.has(key)
+	return SpriteDataR7.STRIPS.has(key) or SpriteDataR6.STRIPS.has(key) or SpriteDataR5.STRIPS.has(key) or SpriteDataR4.STRIPS.has(key) or SpriteData.STRIPS.has(key) or SpriteDataExtra.STRIPS.has(key)
 
 
 static func info(key: String) -> Array:
+	if SpriteDataR7.STRIPS.has(key):
+		return SpriteDataR7.STRIPS[key]
 	if SpriteDataR6.STRIPS.has(key):
 		return SpriteDataR6.STRIPS[key]
 	if SpriteDataR5.STRIPS.has(key):
@@ -66,9 +68,9 @@ static func animal_frames(kind: String) -> SpriteFrames:
 	sf.remove_animation("default")
 	for anim in ["front", "back", "right", "wait", "eat", "happy", "sad"]:
 		var key: String = kind + "_" + anim
-		# 다람쥐 주민(sq1~6)은 앉아 있을 때 탁자 쪽을 보는 옆모습을 써요
+		# 다람쥐 주민(sq1~6)은 앉아 있을 때 탁자 쪽을 보는 앉은 옆모습을 써요
 		if kind.begins_with("sq") and anim in ["wait", "eat", "happy", "sad"]:
-			key = kind + "_right"
+			key = kind + "_sit"
 		if not has_strip(key):
 			for f in FALLBACK.get(anim, []):
 				if has_strip(kind + "_" + f):

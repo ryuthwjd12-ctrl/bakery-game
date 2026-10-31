@@ -18,6 +18,8 @@ const ITEMS := {
 	"butter": {"name": "버터", "kind": "ing", "price": 8},
 	"egg": {"name": "달걀", "kind": "ing", "price": 6},
 	"milk": {"name": "우유", "kind": "ing", "price": 5},
+	"hp_potion": {"name": "체력 물약", "kind": "potion", "price": 30},
+	"mp_potion": {"name": "마나 물약", "kind": "potion", "price": 25},
 	"chocolate": {"name": "초콜릿", "kind": "ing", "price": 10},
 	"cream": {"name": "생크림", "kind": "ing", "price": 9},
 	"raspberry": {"name": "산딸기", "kind": "ing", "price": 0},
@@ -137,7 +139,14 @@ var minutes := float(DAY_START)
 var inv := {}
 var stock := {}
 var known: Array = []
-var oven: Array = []  # [{id, left, total}]
+var oven: Array = []  # 예전 저장 파일 호환용(지금은 굽기가 바로 끝나요)
+var made := {}  # 메뉴별로 만든 횟수(힌트는 3번까지)
+const HINT_TIMES := 3
+## 저장할 때 있던 곳: {"screen": "hall"/"kitchen"/"village"/"field", "area": 지역 id, "x", "y"}
+var place := {}
+var shop_open := true
+## 저장 직전에 main이 지금 있는 곳을 place에 적어 줘요
+var place_provider: Callable
 var picked_today: Array = []
 var rep := 0
 var has_waiter := false
@@ -176,10 +185,10 @@ var stats := {"served": 0, "monsters": 0}
 var waiter_tired := 0.0  # 가 본 다른 마을(그 마을 동물이 손님으로 놀러 와요)
 
 const SAVE_KEYS := ["hero", "gold", "day", "inv", "stock", "known", "oven", "rep", "has_waiter", "tutorial",
-	"annex_tables", "decor", "hp", "mp", "weapons", "weapon", "quests_done", "boss_done", "visited", "dishes", "friends", "goals_done", "stats"]
+	"annex_tables", "decor", "hp", "mp", "weapons", "weapon", "quests_done", "boss_done", "visited", "dishes", "friends", "goals_done", "stats", "made", "minutes", "place", "shop_open", "furn_inv", "placed"]
 ## 무기: 근접(melee)은 앞으로 휘두르고, 마법(magic)은 반짝이를 쏘며 마나를 써요. 비쌀수록 세요.
 const WEAPONS := {
-	"spatula": {"name": "나무 뒤집개", "type": "melee", "power": 8, "price": 0, "icon": "items/w_spatula"},
+	"spatula": {"name": "나무 뒤집개", "type": "melee", "power": 5, "price": 0, "icon": "items/w_spatula"},
 	"rolling_pin": {"name": "밀대 몽둥이", "type": "melee", "power": 14, "price": 200, "icon": "items/w_rolling_pin"},
 	"piping_bag": {"name": "크림 짤주머니", "type": "magic", "power": 12, "mp": 4, "price": 300, "icon": "items/w_piping_bag"},
 	"cake_tin": {"name": "케이크 틀 망치", "type": "melee", "power": 22, "price": 550, "icon": "items/w_cake_tin"},
@@ -192,8 +201,21 @@ const WEAPONS := {
 const VILLAGE_ANIMAL := {"village": ["sq1", "sq2", "sq3", "sq4", "sq5", "sq6"],
 	"petal_hill": ["rb1", "rb2", "rb3", "rb4"], "seashell_beach": ["ct1", "ct2", "ct3", "ct4"],
 	"apple_orchard": ["dr1", "dr2", "dr3", "dr4"], "snowflake_village": ["pg1", "pg2", "pg3", "pg4"]}
-const ANNEX_MAX := 4
-const DECOR_MAX := 2
+const ANNEX_MAX := 6
+const DECOR_MAX := 8
+## 사서 가게에 직접 놓는 가구. foot는 그림 왼쪽 위 기준 바닥에 닿는 자리(걸을 수 없게 막아요).
+## kind: table(손님 두 명이 앉아요), decor(가게가 예뻐져서 손님이 자주 오고 팁이 늘어요)
+const FURNITURE := {
+	"table_set": {"name": "둥근 탁자 세트", "price": 300, "tex": "furniture/table_set", "icon": "furniture/table_set", "kind": "table",
+		"foot": [Vector2(6, 100), Vector2(76, 195), Vector2(146, 210), Vector2(261, 178), Vector2(256, 30), Vector2(196, 2), Vector2(76, 2), Vector2(6, 30)]},
+	"plant_big": {"name": "큰 화분", "price": 150, "tex": "furniture/plant_big", "icon": "items/deco_plant_big", "kind": "decor",
+		"foot": [Vector2(18, 150), Vector2(84, 150), Vector2(84, 192), Vector2(18, 192)]},
+	"plant_small": {"name": "작은 화분", "price": 100, "tex": "furniture/plant_small", "icon": "items/deco_plant", "kind": "decor",
+		"foot": [Vector2(16, 100), Vector2(80, 100), Vector2(80, 131), Vector2(16, 131)]},
+}
+var zoom := {}  # 화면마다 마우스 휠로 맞춘 확대(저장 안 해요)
+var furn_inv := {}  # 사 두고 아직 안 놓은 가구 {id: 개수}
+var placed: Array = []  # 놓은 가구 [{"id", "x", "y"}] (가게 홀 좌표, 그림 왼쪽 위)
 
 
 func new_game(h: String) -> void:
@@ -205,12 +227,15 @@ func new_game(h: String) -> void:
 	stock = {}
 	known = []
 	oven = []
+	made = {}
 	picked_today = []
 	rep = 0
 	has_waiter = false
 	tutorial = {}
 	annex_tables = 0
 	decor = 0
+	furn_inv = {}
+	placed = []
 	hp = max_hp()
 	mp = max_mp()
 	weapons = ["spatula"]
@@ -260,14 +285,6 @@ func _process(delta: float) -> void:
 	if not clock_running or day_over:
 		return
 	minutes += delta / SECONDS_PER_MINUTE
-	for o in oven:
-		o.left -= delta
-	var done := oven.filter(func(o): return o.left <= 0.0)
-	for o in done:
-		oven.erase(o)
-		add_stock(o.id, 1)
-		Audio.sfx("ding")
-		toast.emit("%s 완성! 진열대에 놓았어요." % item_name(o.id))
 	if minutes >= DAY_END:
 		day_over = true
 		day_ended.emit(today.duplicate())
@@ -391,16 +408,53 @@ func check_goals() -> void:
 			toast.emit("★ 목표 달성: %s  (+%d골드)" % [g[1], g[2]])
 
 
+## 가게 문을 열어 둔 동안만 손님이 와요(가게 아래 버튼으로 열고 닫아요).
 func is_open() -> bool:
-	return minutes < LAST_ORDER and not day_over
+	return shop_open and minutes < LAST_ORDER and not day_over
 
 
 func item_name(id: String) -> String:
 	return ITEMS[id].name
 
 
+## 놓은 가구 수(종류별)
+func placed_count(kind: String) -> int:
+	return placed.filter(func(p): return FURNITURE[p.id].kind == kind).size()
+
+
+func owned_furniture(id: String) -> int:
+	return int(furn_inv.get(id, 0)) + placed.filter(func(p): return p.id == id).size()
+
+
+func count_stock(id: String) -> int:
+	return int(stock.get(id, 0))
+
+
 func count(id: String) -> int:
 	return inv.get(id, 0)
+
+
+## 물약을 마셔요(숲길에서 1·2번 키). 마셨으면 true.
+const POTION_HEAL := {"hp_potion": 50, "mp_potion": 20}
+func drink(id: String) -> bool:
+	if int(inv.get(id, 0)) <= 0:
+		toast.emit("%s이 없어요. 도토리 마을 물약집에서 사요." % item_name(id))
+		return false
+	if id == "hp_potion":
+		if hp >= max_hp():
+			toast.emit("체력이 가득해요.")
+			return false
+		hp = mini(max_hp(), hp + POTION_HEAL[id])
+	else:
+		if mp >= max_mp():
+			toast.emit("마나가 가득해요.")
+			return false
+		mp = mini(max_mp(), mp + POTION_HEAL[id])
+	inv[id] -= 1
+	if inv[id] <= 0:
+		inv.erase(id)
+	changed.emit()
+	return true
 
 
 func add_item(id: String, n: int) -> void:
@@ -512,9 +566,16 @@ func next_quest() -> Dictionary:
 func hint_recipe() -> Dictionary:
 	if active_quest != "":
 		return recipe(quest(active_quest).dish)
+	# 받은 주문 중 진열대에 아직 없는 메뉴를 먼저 알려 줘요. 세 번 만들어 본 메뉴는 더 안 알려 줘요.
+	var need := {}
 	for t in orders:
-		if is_instance_valid(t) and STARTER.has(t.order):
-			return recipe(t.order)
+		if not is_instance_valid(t):
+			continue
+		for o in t.wanted():
+			need[o] = need.get(o, 0) + 1
+	for o in need:
+		if count_stock(o) < need[o] and STARTER.has(o) and made.get(o, 0) < HINT_TIMES:
+			return recipe(o)
 	if known.is_empty():
 		return recipe("butter_cookie")
 	return {}
@@ -525,8 +586,6 @@ func cook(slots: Array) -> Dictionary:
 	if slots.is_empty():
 		return {"ok": false, "msg": "조합 칸이 비어 있어요.", "empty": true}
 	var r := find_recipe(slots)
-	if not r.is_empty() and ITEMS[r.id].bake > 0.0 and oven.size() >= OVEN_SLOTS:
-		return {"ok": false, "msg": "오븐이 가득 찼어요. 조금만 기다려요.", "empty": true}
 	for s in slots:
 		if ITEMS[s].kind == "ing":
 			inv[s] = count(s) - 1
@@ -538,14 +597,11 @@ func cook(slots: Array) -> Dictionary:
 		known.append(r.id)
 		today.new += 1
 	var name := item_name(r.id)
+	# 오븐에서 기다리지 않고 바로 완성돼서 진열대에 놓여요
 	var bake: bool = ITEMS[r.id].bake > 0.0
-	var msg := ""
-	if bake:
-		oven.append({"id": r.id, "left": ITEMS[r.id].bake, "total": ITEMS[r.id].bake})
-		msg = "%s 반죽을 오븐에 넣었어요." % name
-	else:
-		add_stock(r.id, 1)
-		msg = "%s 완성!" % name
+	add_stock(r.id, 1)
+	made[r.id] = made.get(r.id, 0) + 1
+	var msg := "%s 완성!" % name
 	if first:
 		msg = "새 레시피 발견! " + msg
 	mark_tutorial("cook")
@@ -580,6 +636,8 @@ func tutorial_done() -> bool:
 
 
 func save_game() -> void:
+	if place_provider.is_valid():
+		place = place_provider.call()
 	var data := {}
 	for k in SAVE_KEYS:
 		data[k] = get(k)
@@ -622,7 +680,17 @@ func load_game() -> bool:
 	friends = _ints(data.get("friends", {}))
 	goals_done = data.get("goals_done", [])
 	stats = _ints(data.get("stats", {"served": 0, "monsters": 0}))
+	made = _ints(data.get("made", {}))
+	place = data.get("place", {})
+	shop_open = data.get("shop_open", true)
+	furn_inv = _ints(data.get("furn_inv", {}))
+	placed = data.get("placed", [])
 	_reset_day()
+	minutes = float(data.get("minutes", DAY_START))
+	# 예전 저장 파일에서 오븐에 있던 건 진열대로 옮겨요
+	for o in oven:
+		add_stock(o.id, 1)
+	oven = []
 	changed.emit()
 	return true
 

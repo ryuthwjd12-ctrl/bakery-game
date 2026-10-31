@@ -12,6 +12,20 @@ func _ready():
 	await _wait(0.5)
 	main.current._shop("weapon"); await _wait(0.4); await _shot("f1_weapon_shop")
 	main.hud.close_panel()
+	await _shot("f0_village_scale")
+	main.current._shop("potion"); await _wait(0.4); await _shot("f1b_potion_shop")
+	main.hud.close_panel()
+	# 물약집 건물을 누르면 걸어가서 바로 열려요
+	var vc = main.current
+	vc.player.position = Vector2(330, 620)
+	var ev := InputEventMouseButton.new()
+	ev.button_index = MOUSE_BUTTON_LEFT; ev.pressed = true
+	ev.position = main.get_viewport().get_canvas_transform() * Vector2(240, 480)
+	vc._unhandled_input(ev)
+	await _wait(3.0)
+	print("click shop opened: ", main.hud.is_panel_open(), " ctx=", main.hud.shop_ctx)
+	main.hud.close_panel()
+	GameState.inv["hp_potion"] = 2; GameState.inv["mp_potion"] = 1
 	# 마을 동쪽 끝으로 걸어 나가기
 	main.current.player.position = Vector2(1385, 378)
 	main.current.player.walk_to(Vector2(1400, 378))
@@ -19,6 +33,7 @@ func _ready():
 	print("now: ", main.current_name, " ", main.current.get("area_id"))
 	await _wait(1.5); await _shot("f2_forest")
 	var f = main.current
+	f.use_mouse_aim = false
 	# 가장 가까운 몬스터 쪽으로 가서 때리기
 	for i in 12:
 		if f.monsters.is_empty():
@@ -32,6 +47,15 @@ func _ready():
 			await _shot("f3_attack")
 	await _wait(0.5); await _shot("f4_after_fight")
 	print("hp=", GameState.hp, " gold=", GameState.gold, " inv=", GameState.inv)
+	GameState.hp = 30
+	var k := InputEventKey.new(); k.keycode = KEY_1; k.pressed = true
+	f._unhandled_input(k)
+	print("after potion hp=", GameState.hp, " left=", GameState.inv.get("hp_potion", 0))
+	await _wait(0.3); await _shot("f4b_potion")
+	# 가운데 큰 나무 뒤로 걸어가 보기
+	f.player.position = Vector2(570, 240)
+	await _wait(0.6); await _shot("f4c_behind_tree")
+	print("behind tree walkable: ", f.can_walk(Vector2(570, 240)))
 	GameState.weapons.append("star_cutter"); GameState.weapon = "star_cutter"
 	if not f.monsters.is_empty():
 		var m2 = f.monsters[0]
@@ -63,9 +87,18 @@ func _ready():
 	main.goto_field("snowflake_village", "forest_west"); await _wait(1.0)
 	main.hud.shop_ctx = "snow"; main.hud.open_trade("얼음 수정 상점", ["cream", "milk", "butter"]); await _wait(0.5); await _shot("f11a_snow_inside")
 	main.hud.close_panel()
-	main.current.player.position = Vector2(780, 520)
+	# 눈꽃 마을 오른쪽 오솔길 → 눈꽃–과수원 오솔길(왼쪽 끝에 서야 해요)
+	main.current.player.position = Vector2(1380, 320)
+	main.current.player.walk_to(Vector2(1404, 320))
+	await _wait(1.0)
+	print("road: ", main.current.get("area_id"), " at ", main.current.player.position)
+	await _shot("f10e_road")
+	# 서쪽 눈바람 숲의 눈사람 거인(마을 밖)
+	main.goto_field("forest_west", "snowflake_village"); await _wait(1.0)
+	main.current.player.position = Vector2(560, 470)
 	await _wait(2.0); await _shot("f11_boss")
 	var sv = main.current
+	sv.use_mouse_aim = false
 	GameState.weapon = "walnut_hammer"; GameState.hp = 999
 	for i in 40:
 		if sv.boss == null or not is_instance_valid(sv.boss) or sv.boss.dead:
@@ -77,8 +110,9 @@ func _ready():
 	await _wait(0.8); await _shot("f12_boss_down")
 	print("boss_done=", GameState.boss_done, " snow known=", GameState.known.has("snow_cookie"))
 	main.hud.close_panel()
-	main.current.player.position = Vector2(757, 20)
-	main.current.player.walk_to(Vector2(757, 2))
+	# 서쪽 숲의 오른쪽 끝은 도토리 마을이에요(왼쪽 끝은 눈꽃 마을)
+	main.current.player.position = Vector2(1380, 392)
+	main.current.player.walk_to(Vector2(1404, 392))
 	await _wait(1.0)
 	print("after exit: ", main.current_name, " ", main.current.get("area_id"))
 	# 저녁 비 오는 마을, 주민과 인사·선물, 목표 창

@@ -27,6 +27,12 @@ var panel: Control  # 지금 열려 있는 창
 var screen := ""
 ## 마을 가게 창: 가게 안 그림, 주인 다람쥐, 인사말, 테두리 색이 가게마다 달라요.
 var shop_ctx := ""
+var shop_bar: HBoxContainer
+var go_btn: Button
+var open_btn: Button
+var decor_btn: Button
+var decor_bar: PanelContainer  # 꾸미기(B): 가방에 있는 가구 줄
+var hover_rows: Array = []  # 마우스를 올리면 색이 바뀌는 가게 줄
 const SHOP_LOOK := {
 	"ingredient": {"bg": "shops/ingredient", "keeper": "shops/keeper_ingredient", "color": "#7FA65A", "pitch": 1.0,
 		"greet": ["어서 와! 오늘 들어온 밀가루가 아주 고와.", "달걀은 아침에 막 가져온 거야!", "숲에서 주운 호두도 받아 줄게."]},
@@ -38,6 +44,10 @@ const SHOP_LOOK := {
 		"greet": ["예쁜 그릇에 담으면 맛도 두 배예요.", "조심조심, 깨지기 쉬워요!", "새 찻잔이 들어왔어요~"]},
 	"weapon": {"bg": "shops/weapon", "keeper": "shops/keeper_weapon", "color": "#C0584A", "pitch": 0.75,
 		"greet": ["숲길은 위험해. 든든한 걸로 골라!", "이 뒤집개, 보기보다 세다고!", "비싼 건 다 이유가 있지."]},
+	# 물약집 그림이 오기 전에는 인테리어점 그림을 빌려 써요(shops/potion.png, keeper_potion.png가 생기면 그걸 써요)
+	"potion": {"bg": "shops/potion", "keeper": "shops/keeper_potion", "fallback": ["shops/interior", "shops/keeper_interior"],
+		"color": "#C0584A", "pitch": 1.1,
+		"greet": ["숲길에 가기 전에 물약은 꼭 챙겨!", "빨간 건 체력, 파란 건 마나야.", "1번, 2번 키로 바로 마실 수 있어."]},
 	"petal": {"bg": "shops/petal", "keeper": "shops/keeper_petal", "color": "#E8B04A", "pitch": 1.3,
 		"greet": ["꽃잎 언덕에 온 걸 환영해!", "오늘 딴 꿀이야, 정말 달아~", "말차 차 한 잔 어때?"]},
 	"orchard": {"bg": "shops/orchard", "keeper": "shops/keeper_orchard", "color": "#C0584A", "pitch": 1.2,
@@ -51,8 +61,7 @@ const SHOP_LOOK := {
 const GUIDE := [
 	["order", "손님에게 가서 E(또는 클릭)로 주문 받기"],
 	["cook", "주방에서 재료를 골라 만들기 (흐린 그림이 힌트)"],
-	["serve", "받은 순서대로 손님에게 음식 내주기"],
-	["clean", "손님이 떠난 자리 치우기"],
+	["serve", "만든 음식을 손님에게 내주기 (순서는 상관없어요)"],
 ]
 
 
@@ -110,6 +119,21 @@ func _ready() -> void:
 	top_right.reset_size()
 	top_right.position = Vector2(1408 - 16 - top_right.size.x, 12)
 
+	# 가게 아래: 홀↔주방 오가기(K), 가게 열기/닫기
+	shop_bar = HBoxContainer.new()
+	shop_bar.add_theme_constant_override("separation", 10)
+	go_btn = UI.button("주방으로 (K)", toggle_kitchen, 20)
+	open_btn = UI.button("", toggle_open, 20)
+	decor_btn = UI.button("꾸미기 (B)", toggle_decor, 20)
+	shop_bar.add_child(go_btn)
+	shop_bar.add_child(open_btn)
+	shop_bar.add_child(decor_btn)
+	root.add_child(shop_bar)
+	decor_bar = PanelContainer.new()
+	decor_bar.add_theme_stylebox_override("panel", UI.box(Color(1, 0.98, 0.93, 0.95), UI.OUTLINE, 14, 2))
+	decor_bar.visible = false
+	root.add_child(decor_bar)
+
 	orders_panel = PanelContainer.new()
 	orders_panel.add_theme_stylebox_override("panel", UI.box(Color(1, 0.98, 0.93, 0.92), UI.OUTLINE, 14, 2))
 	orders_box = VBoxContainer.new()
@@ -158,6 +182,7 @@ func set_screen(name: String) -> void:
 	var playing := name != "title"
 	top_left.visible = playing
 	top_right.visible = playing
+	_refresh_shop_bar()
 	set_prompt("", Vector2.ZERO)
 	refresh()
 
@@ -175,11 +200,100 @@ func _mini_bar(parent: Control, col: Color) -> ColorRect:
 	return bar
 
 
+func _refresh_shop_bar() -> void:
+	shop_bar.visible = screen == "hall" or screen == "kitchen"
+	decor_btn.visible = screen == "hall"
+	if screen != "hall" and decor_bar.visible:
+		_end_decor()
+	go_btn.text = "홀로 (K)" if screen == "kitchen" else "주방으로 (K)"
+	open_btn.text = "영업 중  ●" if GameState.shop_open else "준비 중  ○"
+	open_btn.add_theme_color_override("font_color", Color("#4F9A55") if GameState.shop_open else Color("#9A8B7A"))
+	open_btn.tooltip_text = "누르면 가게 문을 닫아요(손님이 더 오지 않아요)" if GameState.shop_open else "누르면 가게 문을 열어요"
+	shop_bar.reset_size()
+	# 주방에서는 조합 칸을 가리지 않게 조리대 위에 둬요
+	shop_bar.position = Vector2((1408 - shop_bar.size.x) / 2, 470 if screen == "kitchen" else 768 - 16 - shop_bar.size.y)
+
+
+## 꾸미기(B): 산 가구를 골라 가게에 직접 놓고, 놓은 가구를 눌러 옮겨요.
+func toggle_decor() -> void:
+	if screen != "hall":
+		return
+	if decor_bar.visible:
+		_end_decor()
+		return
+	main.hall.set_edit(true)
+	decor_bar.visible = true
+	orders_panel.visible = false
+	refresh_decor_bar()
+	show_toast("가구를 골라 바닥을 누르면 놓여요. 놓은 가구를 누르면 다시 들어요. 오른쪽 클릭은 취소.")
+
+
+func _end_decor() -> void:
+	decor_bar.visible = false
+	orders_panel.visible = true
+	if main.hall:
+		main.hall.set_edit(false)
+
+
+func refresh_decor_bar() -> void:
+	if not decor_bar.visible:
+		return
+	for c in decor_bar.get_children():
+		c.queue_free()
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	row.add_child(UI.label("꾸미기", 20))
+	var any := false
+	for id in GameState.FURNITURE:
+		var n := int(GameState.furn_inv.get(id, 0))
+		if n <= 0:
+			continue
+		any = true
+		var f: Dictionary = GameState.FURNITURE[id]
+		var b := Button.new()
+		b.icon = Sprites.tex(f.icon)
+		b.expand_icon = true
+		b.custom_minimum_size = Vector2(150, 64)
+		b.text = "%s x%d" % [f.name, n]
+		b.add_theme_font_size_override("font_size", 15)
+		b.pressed.connect(func(): main.hall.hold(id))
+		row.add_child(b)
+	if not any:
+		row.add_child(UI.label("가방에 가구가 없어요. 마을 가구점·인테리어점에서 사요.", 16, UI.CHESTNUT))
+	row.add_child(UI.button("가방에 넣기", func(): main.hall.store_held(), 18))
+	row.add_child(UI.button("다 했어요", _end_decor, 18))
+	decor_bar.add_child(row)
+	await get_tree().process_frame
+	decor_bar.reset_size()
+	decor_bar.position = Vector2((1408 - decor_bar.size.x) / 2, 768 - 80 - decor_bar.size.y)
+
+
+## 홀과 주방을 바로 오가요(K)
+func toggle_kitchen() -> void:
+	if screen == "hall":
+		main.goto("kitchen", "hall")
+	elif screen == "kitchen":
+		main.goto("hall", "kitchen")
+
+
+func toggle_open() -> void:
+	GameState.shop_open = not GameState.shop_open
+	Audio.sfx("door")
+	show_toast("가게 문을 열었어요. 손님이 와요!" if GameState.shop_open else "가게 문을 닫았어요. 이미 온 손님은 끝까지 대접해요.")
+	_refresh_shop_bar()
+	GameState.save_game()
+
+
 func refresh() -> void:
 	_tick()
+	_refresh_shop_bar()
 	hp_bar.size.x = 90.0 * clampf(float(GameState.hp) / GameState.max_hp(), 0, 1)
 	mp_bar.size.x = 90.0 * clampf(float(GameState.mp) / GameState.max_mp(), 0, 1)
 	hpmp_l.text = "체력 %d  마나 %d" % [GameState.hp, GameState.mp]
+	var hpp := int(GameState.inv.get("hp_potion", 0))
+	var mpp := int(GameState.inv.get("mp_potion", 0))
+	if hpp + mpp > 0:
+		hpmp_l.text += "   물약 [1] %d  [2] %d" % [hpp, mpp]
 	gold_l.text = "%d 골드" % GameState.gold
 	level_l.text = "가게 Lv.%d" % GameState.level()
 	level_bar.size.x = 140.0 * GameState.level_progress()
@@ -212,7 +326,7 @@ func _refresh_orders() -> void:
 	orders_panel.visible = _playing() and not GameState.orders.is_empty()
 	if not orders_panel.visible:
 		return
-	orders_box.add_child(UI.label("주문 순서", 17, UI.CHESTNUT))
+	orders_box.add_child(UI.label("받은 주문", 17, UI.CHESTNUT))
 	for i in GameState.orders.size():
 		var t = GameState.orders[i]
 		if not is_instance_valid(t):
@@ -226,7 +340,11 @@ func _refresh_orders() -> void:
 		hb.add_theme_constant_override("separation", 4)
 		hb.add_child(UI.label(str(i + 1), 18, UI.PINK if first else UI.OUTLINE))
 		hb.add_child(UI.icon(Sprites.first_frame(t.kind + "_front"), 40))
-		hb.add_child(UI.icon(Sprites.item(t.order), 42))
+		for id in t.wanted():
+			var ic := UI.icon(Sprites.item(id), 42)
+			if GameState.stock.get(id, 0) <= 0:
+				ic.modulate = Color(1, 1, 1, 0.45)  # 아직 안 만든 메뉴는 흐리게
+			hb.add_child(ic)
 		vb.add_child(hb)
 		var bg := ColorRect.new()
 		bg.color = Color("#EADFCB")
@@ -303,6 +421,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.keycode == KEY_R and not get_tree().paused:
 		toggle_book()
 		get_viewport().set_input_as_handled()
+	elif (event.keycode == KEY_K or event.keycode == KEY_TAB) and not get_tree().paused and not panel and (screen == "hall" or screen == "kitchen"):
+		toggle_kitchen()
+		get_viewport().set_input_as_handled()
+	elif event.keycode == KEY_B and not get_tree().paused and not panel and screen == "hall":
+		toggle_decor()
+		get_viewport().set_input_as_handled()
 	elif event.keycode == KEY_I and not get_tree().paused:
 		if panel:
 			close_panel()
@@ -366,6 +490,11 @@ func window(title: String, w: float, closable := true) -> VBoxContainer:
 	var t := UI.label(title, 30)
 	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(t)
+	if shop_ctx != "":
+		# 가게 안에서는 가진 골드를 늘 보여 줘요
+		var g := UI.label("가진 골드  %d" % GameState.gold, 22, Color("#B8741A"))
+		g.add_theme_stylebox_override("normal", UI.box(Color("#FFF6DC"), Color("#E8B04A"), 10, 2))
+		head.add_child(g)
 	if closable:
 		head.add_child(UI.button("닫기", close_panel, 18))
 	else:
@@ -375,6 +504,31 @@ func window(title: String, w: float, closable := true) -> VBoxContainer:
 	root.add_child(shade)
 	_center.call_deferred(pc)
 	return vb
+
+
+## 마우스를 올린 줄을 다른 색으로 보여 줘요. 줄을 감싼 판을 돌려줘요.
+func _hl(row: Control) -> PanelContainer:
+	var pc := PanelContainer.new()
+	pc.add_theme_stylebox_override("panel", UI.box(Color(1, 1, 1, 0), Color(1, 1, 1, 0), 10, 0))
+	pc.set_meta("hl", true)
+	pc.add_child(row)
+	hover_rows.append(pc)
+	return pc
+
+
+func _process(_delta: float) -> void:
+	if hover_rows.is_empty():
+		return
+	var m := root.get_global_mouse_position()
+	for pc in hover_rows.duplicate():
+		if not is_instance_valid(pc):
+			hover_rows.erase(pc)
+			continue
+		var on: bool = pc.get_global_rect().has_point(m)
+		if on != pc.get_meta("on", false):
+			pc.set_meta("on", on)
+			var col: Color = Color(SHOP_LOOK[shop_ctx].color) if SHOP_LOOK.has(shop_ctx) else UI.PINK
+			pc.add_theme_stylebox_override("panel", UI.box(Color(col, 0.16) if on else Color(1, 1, 1, 0), Color(col, 0.7) if on else Color(1, 1, 1, 0), 10, 2 if on else 0))
 
 
 func _center(pc: Control) -> void:
@@ -402,7 +556,10 @@ func _icon_btn(icon: String, tip: String, cb: Callable) -> TextureButton:
 
 
 func _shop_scene(shade: ColorRect, reopen: bool) -> void:
-	var look: Dictionary = SHOP_LOOK[shop_ctx]
+	var look: Dictionary = SHOP_LOOK[shop_ctx].duplicate()
+	if look.has("fallback") and not ResourceLoader.exists("res://assets/%s.png" % look.bg):
+		look.bg = look.fallback[0]
+		look.keeper = look.fallback[1]
 	shade.color = Color.BLACK
 	var bg := TextureRect.new()
 	bg.texture = Sprites.tex(look.bg)
@@ -463,7 +620,12 @@ func toggle_book() -> void:
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 24)
 	grid.add_theme_constant_override("v_separation", 12)
-	vb.add_child(grid)
+	# 레시피가 많아서 창 안에서 굴려 봐요(휠 또는 끌기)
+	var sc := ScrollContainer.new()
+	sc.custom_minimum_size = Vector2(0, 520)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.add_child(grid)
+	vb.add_child(sc)
 	for r in GameState.RECIPES:
 		var row := HBoxContainer.new()
 		row.custom_minimum_size = Vector2(420, 64)
@@ -484,6 +646,23 @@ func toggle_book() -> void:
 		col.add_child(ings)
 		row.add_child(col)
 		grid.add_child(row)
+
+
+## 가게 칠판 메뉴판: 오늘 손님이 시킬 수 있는 메뉴와 값, 진열대에 몇 개 있는지
+func open_menu_board() -> void:
+	Audio.sfx("click")
+	var vb := window("오늘의 메뉴", 640)
+	vb.add_child(UI.label("가게 레벨이 오르면 메뉴가 늘어요. 진열대에 없는 메뉴는 주방에서 만들어요.", 16, UI.CHESTNUT))
+	for id in GameState.menu_now():
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 12)
+		row.add_child(UI.icon(Sprites.item(id), 52))
+		var nm := UI.label("%s  %d골드" % [GameState.item_name(id), GameState.ITEMS[id].price], 22)
+		nm.custom_minimum_size.x = 300
+		row.add_child(nm)
+		var n: int = GameState.stock.get(id, 0)
+		row.add_child(UI.label("진열대 %d개" % n, 18, Color("#4F9A55") if n > 0 else Color("#C0584A")))
+		vb.add_child(_hl(row))
 
 
 const SELL_RATE := 0.3  # 되팔 때는 산 값의 30%
@@ -511,7 +690,7 @@ func open_trade(title: String, items: Array, selling := false) -> void:
 	var list := VBoxContainer.new()
 	list.add_theme_constant_override("separation", 8)
 	for id in items:
-		list.add_child(_trade_row(id, selling, func(): open_trade(title, items, selling)))
+		list.add_child(_hl(_trade_row(id, selling, func(): open_trade(title, items, selling))))
 	if items.size() > 7:
 		var sc := ScrollContainer.new()
 		sc.custom_minimum_size = Vector2(0, 470)
@@ -618,7 +797,7 @@ func open_weapon_shop() -> void:
 				Audio.sfx("coin")
 				show_toast("%s을(를) 샀어요! 바로 장착했어요." % w.name)
 				open_weapon_shop(), 18))
-		vb.add_child(row)
+		vb.add_child(_hl(row))
 
 
 ## 목표: 해낸 것은 ★, 남은 것은 ☆. 해내면 바로 골드를 받아요. 친한 주민 하트도 여기서 봐요.
@@ -745,7 +924,7 @@ func open_store(title: String, desc: String, entries: Array) -> void:
 				Audio.sfx("coin")
 				open_store(title, desc, entries)
 			row.add_child(UI.button("팔기" if e.price == 0 else "사기", buy, 20))
-		vb.add_child(row)
+		vb.add_child(_hl(row))
 
 
 ## 부탁 손님 이야기 창: 얼굴, 사연, 스페셜 요리와 레시피

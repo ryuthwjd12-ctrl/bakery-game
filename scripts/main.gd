@@ -21,7 +21,19 @@ func _ready() -> void:
 	hud = Hud.new()
 	hud.main = self
 	add_child(hud)
+	GameState.place_provider = _where
 	goto("title")
+
+
+## 지금 있는 곳(저장할 때 같이 적어요)
+func _where() -> Dictionary:
+	var out := {"screen": current_name}
+	if current_name == "field":
+		out.area = current.area_id
+	if current and "player" in current and current.player:
+		out.x = current.player.position.x
+		out.y = current.player.position.y
+	return out
 
 
 func start(h: String, load_save: bool) -> void:
@@ -37,13 +49,27 @@ func start(h: String, load_save: bool) -> void:
 	add_child(hall)
 	move_child(hall, 0)
 	GameState.clock_running = true
-	goto("hall")
+	# 이어하기: 저장했던 곳, 저장했던 자리로 돌아가요
+	var pl: Dictionary = GameState.place if load_save else {}
+	match pl.get("screen", "hall"):
+		"field":
+			goto_field(pl.get("area", "forest_east"))
+		"village":
+			goto("village")
+		"kitchen":
+			goto("kitchen")
+		_:
+			goto("hall")
+	if pl.has("x") and current and "player" in current and current.player:
+		current.player.position = Vector2(pl.x, pl.y)
+		if current == hall:
+			hall._set_cam_room(hall.in_annex(current.player.position))
 
 
+## 하루가 끝나도 있던 곳에 그대로 있어요(숲에서 싸우던 중이면 숲에서 아침을 맞아요)
 func new_day() -> void:
 	GameState.next_day()
 	hall.reset_day()
-	goto("hall")
 	hud.show_toast("%d일차 아침이에요. 오늘도 힘내요!" % GameState.day)
 
 
