@@ -5,12 +5,14 @@ extends Node2D
 const Player := preload("res://scripts/player.gd")
 const Animal := preload("res://scripts/animal.gd")
 
-## 마을 그림을 MAP_SCALE배로 키워 깔아요. 좌표·걷기 지도는 원래 그림(1408x768) 기준 그대로 쓰고,
-## 주인공·주민은 작게 그려서 건물이 상대적으로 크게 보이게 해요.
-const MAP_SCALE := 2.0
-const ZOOM := 1.67
-const HERO_SCALE := 0.15
-const ANIMAL_SCALE := 0.17
+## 마을 그림(1408x768)을 그대로 깔고 카메라로 조금만 당겨 봐요(너무 키우면 흐려져요).
+## 마우스 휠로 ZOOM_MIN~ZOOM_MAX 사이에서 당기고 밀 수 있어요.
+const MAP_SCALE := 1.0
+const ZOOM := 1.45
+const ZOOM_MIN := 1.0
+const ZOOM_MAX := 2.2
+const HERO_SCALE := 0.34
+const ANIMAL_SCALE := 0.38
 const AREA := [Vector2(0, 0), Vector2(1408, 0), Vector2(1408, 768), Vector2(0, 768)]
 ## 건물·나무·덤불·화단 자리. 지붕 위나 건물 뒤로는 못 가요. 좌표는 마을 그림(1408x768) 기준.
 const BLOCKS := [
@@ -101,6 +103,7 @@ var world := Node2D.new()
 var player
 var cam := Camera2D.new()
 var near = null
+var pending = null  # 눌러서 걸어가는 중인 가게·대상(닿으면 바로 열어요)
 var residents: Array = []
 var puppy: AnimatedSprite2D
 var door_armed := false
@@ -116,6 +119,7 @@ const GROUND := [["acorn1", "acorn", Vector2(174, 245)], ["acorn2", "acorn", Vec
 const SHOP_DOORS := {
 	"ingredient": [Vector2(561, 290), 7], "interior": [Vector2(892, 238), 9],
 	"furniture": [Vector2(1213, 332), 12], "dish": [Vector2(524, 668), 26], "weapon": [Vector2(1154, 614), 15],
+	"potion": [Vector2(250, 590), 29],  # 그루터기 집 = 도토리 물약집
 }
 
 
@@ -131,11 +135,11 @@ func _ready() -> void:
 	overlays = Gather.add_overlays(over_layer, "backgrounds/acorn_village", "")
 	world.y_sort_enabled = true
 	map.add_child(world)
-	ground = Gather.add_ground_items(world, GROUND, "v_", 0.11)
+	ground = Gather.add_ground_items(world, GROUND, "v_", 0.16)
 
 	player = Player.new()
 	player.setup(GameState.hero, HERO_SCALE)
-	player.speed = 70.0
+	player.speed = 86.0
 	player.can_walk = can_walk
 	player.position = BAKERY_DOOR + Vector2(0, 36)
 	var edge := {"forest_north": Vector2(707, 30), "forest_east": Vector2(1370, 378),
@@ -145,7 +149,9 @@ func _ready() -> void:
 		door_armed = true
 	world.add_child(player)
 
-	cam.zoom = Vector2(ZOOM, ZOOM)
+	var z: float = GameState.zoom.get("village", ZOOM)
+	cam.zoom = Vector2(z, z)
+	cam.set_meta("zoom_key", "village")
 	cam.limit_left = 0
 	cam.limit_top = 0
 	cam.limit_right = int(1408 * MAP_SCALE)
@@ -163,7 +169,7 @@ func _ready() -> void:
 		puppy.animation = "front"
 		var ph := float(Sprites.frame_height("puppy_front"))
 		puppy.offset = Vector2(0, -ph / 2.0)
-		puppy.scale = Vector2.ONE * 0.14 * 122.0 / ph
+		puppy.scale = Vector2.ONE * 0.28 * 122.0 / ph
 		var holder := Node2D.new()
 		holder.position = Vector2(778, 470)
 		holder.add_child(puppy)
@@ -242,6 +248,7 @@ func _actions() -> Array:
 		{"pos": SHOP_DOORS.furniture[0], "r": 36.0, "text": "가구점", "do": _shop.bind("furniture")},
 		{"pos": SHOP_DOORS.dish[0], "r": 36.0, "text": "그릇 가게", "do": _shop.bind("dish")},
 		{"pos": SHOP_DOORS.weapon[0], "r": 36.0, "text": "무기점", "do": _shop.bind("weapon")},
+		{"pos": SHOP_DOORS.potion[0], "r": 36.0, "text": "물약집", "do": _shop.bind("potion")},
 	]
 	for id in BUSHES:
 		if not GameState.picked_today.has(id):
@@ -287,6 +294,10 @@ func _process(_delta: float) -> void:
 		if d < a.r and d < best:
 			near = a
 			best = d
+	if pending and near and near.text == pending.text and near.pos.distance_to(pending.pos) < 1.0 and not main.hud.is_panel_open():
+		pending = null
+		near.do.call()
+		return
 	player.active = not main.hud.is_panel_open()
 	if near and player.active:
 		main.hud.set_prompt("E  " + near.text, _to_screen(player.position) + Vector2(0, 14))
@@ -309,14 +320,24 @@ func _unhandled_input(event: InputEvent) -> void:
 		if (event.keycode == KEY_E or event.keycode == KEY_SPACE) and near:
 			near.do.call()
 			get_viewport().set_input_as_handled()
+	elif UI.wheel_zoom(cam, event, ZOOM_MIN, ZOOM_MAX):
+		get_viewport().set_input_as_handled()
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		var to: Vector2 = _to_map(event.position)
-		# 빵집을 누르면 문으로 걸어가요
+		pending = null
+		# 빵집을 누르면 문으로 걸어가 바로 들어가요
 		if Geometry2D.is_point_in_polygon(to, PackedVector2Array(BLOCKS[BAKERY_BLOCK])):
 			to = BAKERY_DOOR
+			door_armed = true
+		# 가게 건물·덤불·주민을 누르면 그 앞으로 걸어가서 E 없이 바로 열어요
 		for id in SHOP_DOORS:
 			if Geometry2D.is_point_in_polygon(to, PackedVector2Array(BLOCKS[SHOP_DOORS[id][1]])):
 				to = SHOP_DOORS[id][0]
+		for a in _actions():
+			if a.pos.distance_to(to) < maxf(a.r, 22.0):
+				pending = a
+				to = a.pos
+				break
 		player.walk_path(walk.find_path(player.position, to))
 
 
@@ -390,6 +411,8 @@ func _shop(id: String) -> void:
 			_dish_shop()
 		"weapon":
 			main.hud.open_weapon_shop()
+		"potion":
+			main.hud.open_trade("도토리 물약집", ["hp_potion", "mp_potion"])
 
 
 func _soon() -> void:
@@ -422,7 +445,7 @@ func _say_over(node: Node2D, text: String, height := 70.0) -> void:
 	var l := UI.label(text, 18)
 	l.add_theme_stylebox_override("normal", UI.box(Color.WHITE, UI.OUTLINE, 10, 2))
 	l.z_index = 90
-	l.scale = Vector2.ONE / (MAP_SCALE * ZOOM) * 1.2  # 지도를 키운 만큼 줄여서 글자 크기를 맞춰요
+	l.scale = Vector2.ONE / (MAP_SCALE * cam.zoom.x) * 1.2  # 지도를 키운 만큼 줄여서 글자 크기를 맞춰요
 	node.add_child(l)
 	l.reset_size()
 	l.position = Vector2(-l.size.x * l.scale.x / 2, -height - l.size.y * l.scale.y)

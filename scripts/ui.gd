@@ -148,3 +148,20 @@ static func bg(tex: Texture2D) -> TextureRect:
 	r.stretch_mode = TextureRect.STRETCH_SCALE
 	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return r
+
+
+## 마우스 휠로 카메라를 당기고 밀어요. 처리했으면 true.
+static func wheel_zoom(cam: Camera2D, event: InputEvent, lo: float, hi: float) -> bool:
+	if not (event is InputEventMouseButton and event.pressed):
+		return false
+	var f := 1.0
+	if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+		f = 1.1
+	elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+		f = 1.0 / 1.1
+	else:
+		return false
+	var z := clampf(cam.zoom.x * f, lo, hi)
+	cam.zoom = Vector2(z, z)
+	GameState.zoom[cam.get_meta("zoom_key", "")] = z
+	return true

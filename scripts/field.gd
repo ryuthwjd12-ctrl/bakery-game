@@ -22,12 +22,14 @@ var attacking := false
 var invuln := 0.0
 var player_down := false
 var near = null
+var pending := ""  # 눌러서 걸어가는 중인 대상 이름(닿으면 E 없이 바로 해요)
 var mp_regen := 0.0
 var boss = null
 var aim := Vector2.RIGHT  # 이번 공격이 향하는 방향(8방향이 아니라 마우스 쪽 그대로)
 var use_mouse_aim := true  # 테스트에서는 꺼요
 var snow_cd := 3.0
 var overlays := {}
+var occluders: Array = []  # [Polygon2D, 지도 기준 모양, base_y]
 var residents: Array = []
 const TOWN_TALK := ["어서 와! 도토리 마을에서 왔구나?", "빵 냄새가 여기까지 나는 것 같아.", "우리 마을 구경하고 가!",
 	"다음에 빵집에 놀러 갈게.", "오늘 날씨 좋다~", "가게는 저쪽이야!"]
@@ -60,6 +62,8 @@ func _ready() -> void:
 	overlays = Gather.add_overlays(over_layer, area.bg, area_id + "_")
 	world.y_sort_enabled = true
 	add_child(world)
+	for oc in area.get("occluders", []):
+		_add_occluder(oc)
 	if area.has("monsters"):
 		ground = Gather.add_ground_items(world, GROUND, area_id + "_", 0.26)
 	walk = WalkMap.new(area.area, area.blocks, 12, Vector2i(area.size))
@@ -71,7 +75,9 @@ func _ready() -> void:
 	player.position = area.entries.get(from, area.entries.values()[0])
 	world.add_child(player)
 	_add_attack_anims()
-	cam.zoom = Vector2(area.zoom, area.zoom)
+	var z: float = GameState.zoom.get("field", area.zoom)
+	cam.zoom = Vector2(z, z)
+	cam.set_meta("zoom_key", "field")
 	cam.limit_left = 0
 	cam.limit_top = 0
 	cam.limit_right = int(area.size.x)
@@ -97,6 +103,25 @@ func _ready() -> void:
 	Audio.play_bgm("bgm_forest" if area.has("monsters") or area.has("boss") else "bgm_village")
 	add_child(Weather.new())  # 시간 따라 하늘빛, 비 오는 날엔 비
 	main.hud.show_toast(area.name + (" — 몬스터 조심!" if area.has("monsters") else ""))
+
+
+## 나무 모양으로 지도 그림을 잘라 세워요. 밑동보다 위(뒤)에 선 주인공은 잎에 가려져요.
+func _add_occluder(oc: Dictionary) -> void:
+	var holder := Node2D.new()
+	holder.position = Vector2(0, oc.base_y)
+	var poly := Polygon2D.new()
+	poly.texture = Sprites.tex(area.bg)
+	var pts := PackedVector2Array(oc.poly)
+	poly.uv = pts
+	var moved := PackedVector2Array()
+	for q in pts:
+		moved.append(q - Vector2(0, oc.base_y))
+	poly.polygon = moved
+	if area.has("tint"):
+		poly.color = area.tint
+	holder.add_child(poly)
+	world.add_child(holder)
+	occluders.append([poly, pts, float(oc.base_y)])
 
 
 ## 주인공 그림에 공격 동작(휘두르기·마법)을 더해요.
@@ -299,7 +324,15 @@ func _process(delta: float) -> void:
 		if e.rect.has_point(player.position):
 			_leave(e.to)
 			return
+	# 나무 뒤에 서면 잎을 반쯤 투명하게 해서 주인공이 보이게 해요
+	for oc in occluders:
+		var behind: bool = player.position.y < oc[2] and Geometry2D.is_point_in_polygon(player.position + Vector2(0, -30), oc[1])
+		oc[0].modulate.a = move_toward(oc[0].modulate.a, 0.5 if behind else 1.0, delta * 4.0)
 	near = _find_near()
+	if pending != "" and near and near.text == pending and player.waypoints.is_empty() and not main.hud.is_panel_open():
+		pending = ""
+		near.do.call()
+		return
 	player.active = not main.hud.is_panel_open()
 	if near and player.active:
 		main.hud.set_prompt("E  " + near.text, get_viewport().get_canvas_transform() * (player.position + Vector2(0, 10)))
@@ -386,13 +419,44 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event.keycode == KEY_SPACE or event.keycode == KEY_J:
 			attack()
 			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_1 or event.keycode == KEY_2:
+			var id := "hp_potion" if event.keycode == KEY_1 else "mp_potion"
+			if GameState.drink(id):
+				Audio.sfx("sparkle")
+				UI.pop(player.sprite, 0.15)
+				main.hud.show_toast("%s을 마셨어요!" % GameState.item_name(id))
+			get_viewport().set_input_as_handled()
+	elif UI.wheel_zoom(cam, event, 1.0, 2.4):
+		get_viewport().set_input_as_handled()
 	elif event is InputEventMouseButton and event.pressed:
 		var to: Vector2 = get_viewport().get_canvas_transform().affine_inverse() * event.position
 		if event.button_index == MOUSE_BUTTON_RIGHT:
 			attack()
 		elif event.button_index == MOUSE_BUTTON_LEFT:
 			UI.ripple(self, to, 14.0)
+			pending = ""
+			var t = _click_target(to)
+			if t:
+				pending = t[0]
+				to = t[1]
 			player.walk_path(walk.find_path(player.position, to))
+
+
+## 누른 곳의 가게·주민·열매·떨어진 재료 [이름, 걸어갈 곳]
+func _click_target(p: Vector2):
+	if area.has("shop") and (p.distance_to(area.shop.pos) < 70 or Rect2(area.shop.pos + Vector2(-110, -230), Vector2(220, 230)).has_point(p)):
+		return [area.shop.name, area.shop.pos]
+	for a in residents:
+		if is_instance_valid(a) and p.distance_to(a.position + Vector2(0, -20)) < 40:
+			return [GameState.friend_action(a.kind), a.position]
+	var spots: Dictionary = GATHER.get(area.bg, {})
+	for sid in spots:
+		if not GameState.picked_today.has(area_id + "_" + sid) and p.distance_to(spots[sid][3]) < 60:
+			return [GameState.item_name(spots[sid][0]) + " 따기", spots[sid][3]]
+	for gid in ground:
+		if is_instance_valid(ground[gid]) and p.distance_to(ground[gid].position) < 30:
+			return ["줍기", ground[gid].position]
+	return null
 
 
 ## 장착한 무기로 공격해요. 근접 무기는 앞을 휘두르고, 마법 무기는 반짝이를 날려요.

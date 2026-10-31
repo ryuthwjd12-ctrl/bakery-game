@@ -8,8 +8,8 @@ const FOREST_AREA := [Vector2(0, 215), Vector2(1408, 215), Vector2(1408, 560), V
 	Vector2(960, 600), Vector2(760, 578), Vector2(560, 578), Vector2(470, 612), Vector2(320, 615), Vector2(180, 540),
 	Vector2(70, 560), Vector2(0, 560)]
 const FOREST_BLOCKS := [
-	# 가운데 큰 나무
-	[Vector2(470, 250), Vector2(560, 205), Vector2(665, 255), Vector2(655, 380), Vector2(560, 400), Vector2(480, 370)],
+	# 가운데 큰 나무: 밑동만 막아요(잎 뒤로는 걸어갈 수 있어요)
+	[Vector2(480, 345), Vector2(540, 320), Vector2(640, 320), Vector2(665, 345), Vector2(660, 388), Vector2(500, 390)],
 	# 그루터기, 바위, 덤불, 표지판
 	[Vector2(235, 290), Vector2(300, 272), Vector2(360, 300), Vector2(355, 355), Vector2(250, 350)],
 	[Vector2(1090, 215), Vector2(1160, 200), Vector2(1215, 225), Vector2(1200, 270), Vector2(1100, 265)],
@@ -27,6 +27,13 @@ const FOREST_BLOCKS := [
 	[Vector2(350, 430), Vector2(455, 405), Vector2(520, 455), Vector2(515, 525), Vector2(405, 530), Vector2(350, 470)],
 ]
 
+## 주인공이 뒤로 지나가면 가려지는 나무: 지도 그림에서 이 모양만 잘라 base_y(밑동) 기준으로 앞뒤를 정해요.
+const FOREST_OCCLUDERS := [
+	{"base_y": 386.0, "poly": [Vector2(470, 200), Vector2(478, 160), Vector2(505, 140), Vector2(560, 128), Vector2(615, 135),
+		Vector2(660, 160), Vector2(678, 200), Vector2(675, 240), Vector2(660, 262), Vector2(666, 300), Vector2(666, 376),
+		Vector2(640, 386), Vector2(500, 386), Vector2(485, 372), Vector2(470, 330), Vector2(467, 280), Vector2(472, 250)]},
+]
+
 const NAMES := {"village": "도토리 마을", "petal_hill": "꽃잎 언덕", "seashell_beach": "조개 해변",
 	"apple_orchard": "과일 과수원", "snowflake_village": "눈꽃 마을"}
 
@@ -36,7 +43,7 @@ const NAMES := {"village": "도토리 마을", "petal_hill": "꽃잎 언덕", "s
 static func forest(name: String, left_to: String, right_to: String, monsters: Array, tint: Color) -> Dictionary:
 	return {
 		"name": name, "bg": "maps/forest_path", "size": Vector2(1408, 768), "zoom": 1.8, "hero": 0.3,
-		"area": FOREST_AREA, "blocks": FOREST_BLOCKS, "tint": tint, "monsters": monsters, "count": 6,
+		"area": FOREST_AREA, "blocks": FOREST_BLOCKS, "occluders": FOREST_OCCLUDERS, "tint": tint, "monsters": monsters, "count": 6,
 		"exits": [
 			{"rect": Rect2(-40, 300, 52, 110), "to": left_to, "label": NAMES.get(left_to, "")},
 			{"rect": Rect2(1396, 340, 60, 100), "to": right_to, "label": NAMES.get(right_to, "")},

@@ -40,21 +40,41 @@ for mp, spots in SPOTS.items():
             fruit |= ((b > 110) & (b - r > 35) & (b - g > 25))  # 블루베리
         fruit = ndimage.binary_opening(fruit, iterations=1)
         fruit = ndimage.binary_fill_holes(ndimage.binary_closing(fruit, iterations=2))
-        fruit = ndimage.binary_dilation(fruit, iterations=5)  # 열매 테두리·꼭지까지
+        fruit = ndimage.binary_dilation(fruit, iterations=4)  # 열매 테두리·꼭지까지
         filled = sub.copy()
         lum = sub.mean(axis=2)
         lab, n = ndimage.label(fruit)
-        rng = np.random.default_rng(1)
+        H, W = fruit.shape
+        avoid = ndimage.binary_dilation(fruit, iterations=2)
+        offs = sorted([(dx, dy) for dx in range(-40, 41, 2) for dy in range(-40, 41, 2) if (dx, dy) != (0, 0)],
+                      key=lambda o: o[0] ** 2 + o[1] ** 2)
         for i in range(1, n + 1):
             blob = lab == i
-            ring = ndimage.binary_dilation(blob, iterations=5) & ~ndimage.binary_dilation(blob, iterations=1)
-            ring &= (lum > 85) & ~fruit
+            ring = ndimage.binary_dilation(blob, iterations=4) & ~ndimage.binary_dilation(blob, iterations=1)
+            ring &= (lum > 70) & ~fruit
             if ring.sum() < 5:
                 continue
             col = np.median(sub[ring], axis=0)
-            filled[blob] = col + rng.normal(0, 4, (blob.sum(), 3))
-        filled = filled * 0.85 + ndimage.gaussian_filter(filled, (1.5, 1.5, 0)) * 0.15
-        alpha = ndimage.gaussian_filter(ndimage.binary_dilation(fruit, iterations=2).astype(float), 1.2)
+            ys, xs = np.nonzero(blob)
+            # 열매 대신 근처 잎 무늬를 통째로 옮겨 붙여요(흐린 얼룩이 아니라 잎 그림이 이어져 보여요)
+            best = None
+            for dx, dy in offs[:600]:
+                sy, sx = ys + dy, xs + dx
+                if sy.min() < 0 or sx.min() < 0 or sy.max() >= H or sx.max() >= W:
+                    continue
+                if avoid[sy, sx].any():
+                    continue
+                d = np.abs(sub[sy, sx].mean(axis=0) - col).sum()
+                if best is None or d < best[0]:
+                    best = (d, dx, dy)
+                if d < 25:
+                    break
+            if best is not None and best[0] < 90:
+                filled[ys, xs] = sub[ys + best[2], xs + best[1]]
+            else:
+                rng = np.random.default_rng(1)
+                filled[blob] = col + rng.normal(0, 4, (blob.sum(), 3))
+        alpha = ndimage.gaussian_filter(ndimage.binary_dilation(fruit, iterations=1).astype(float), 0.8)
         rgba = np.dstack([np.clip(filled, 0, 255), alpha * 255]).astype(np.uint8)
         name = mp.split('/')[-1] + '_' + sid
         Image.fromarray(rgba, 'RGBA').save(os.path.join(OUT, name + '.png'))

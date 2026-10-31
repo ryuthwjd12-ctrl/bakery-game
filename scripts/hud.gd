@@ -44,6 +44,10 @@ const SHOP_LOOK := {
 		"greet": ["예쁜 그릇에 담으면 맛도 두 배예요.", "조심조심, 깨지기 쉬워요!", "새 찻잔이 들어왔어요~"]},
 	"weapon": {"bg": "shops/weapon", "keeper": "shops/keeper_weapon", "color": "#C0584A", "pitch": 0.75,
 		"greet": ["숲길은 위험해. 든든한 걸로 골라!", "이 뒤집개, 보기보다 세다고!", "비싼 건 다 이유가 있지."]},
+	# 물약집 그림이 오기 전에는 인테리어점 그림을 빌려 써요(shops/potion.png, keeper_potion.png가 생기면 그걸 써요)
+	"potion": {"bg": "shops/potion", "keeper": "shops/keeper_potion", "fallback": ["shops/interior", "shops/keeper_interior"],
+		"color": "#C0584A", "pitch": 1.1,
+		"greet": ["숲길에 가기 전에 물약은 꼭 챙겨!", "빨간 건 체력, 파란 건 마나야.", "1번, 2번 키로 바로 마실 수 있어."]},
 	"petal": {"bg": "shops/petal", "keeper": "shops/keeper_petal", "color": "#E8B04A", "pitch": 1.3,
 		"greet": ["꽃잎 언덕에 온 걸 환영해!", "오늘 딴 꿀이야, 정말 달아~", "말차 차 한 잔 어때?"]},
 	"orchard": {"bg": "shops/orchard", "keeper": "shops/keeper_orchard", "color": "#C0584A", "pitch": 1.2,
@@ -286,6 +290,10 @@ func refresh() -> void:
 	hp_bar.size.x = 90.0 * clampf(float(GameState.hp) / GameState.max_hp(), 0, 1)
 	mp_bar.size.x = 90.0 * clampf(float(GameState.mp) / GameState.max_mp(), 0, 1)
 	hpmp_l.text = "체력 %d  마나 %d" % [GameState.hp, GameState.mp]
+	var hpp := int(GameState.inv.get("hp_potion", 0))
+	var mpp := int(GameState.inv.get("mp_potion", 0))
+	if hpp + mpp > 0:
+		hpmp_l.text += "   물약 [1] %d  [2] %d" % [hpp, mpp]
 	gold_l.text = "%d 골드" % GameState.gold
 	level_l.text = "가게 Lv.%d" % GameState.level()
 	level_bar.size.x = 140.0 * GameState.level_progress()
@@ -548,7 +556,10 @@ func _icon_btn(icon: String, tip: String, cb: Callable) -> TextureButton:
 
 
 func _shop_scene(shade: ColorRect, reopen: bool) -> void:
-	var look: Dictionary = SHOP_LOOK[shop_ctx]
+	var look: Dictionary = SHOP_LOOK[shop_ctx].duplicate()
+	if look.has("fallback") and not ResourceLoader.exists("res://assets/%s.png" % look.bg):
+		look.bg = look.fallback[0]
+		look.keeper = look.fallback[1]
 	shade.color = Color.BLACK
 	var bg := TextureRect.new()
 	bg.texture = Sprites.tex(look.bg)

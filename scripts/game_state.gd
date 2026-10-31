@@ -18,6 +18,8 @@ const ITEMS := {
 	"butter": {"name": "버터", "kind": "ing", "price": 8},
 	"egg": {"name": "달걀", "kind": "ing", "price": 6},
 	"milk": {"name": "우유", "kind": "ing", "price": 5},
+	"hp_potion": {"name": "체력 물약", "kind": "potion", "price": 30},
+	"mp_potion": {"name": "마나 물약", "kind": "potion", "price": 25},
 	"chocolate": {"name": "초콜릿", "kind": "ing", "price": 10},
 	"cream": {"name": "생크림", "kind": "ing", "price": 9},
 	"raspberry": {"name": "산딸기", "kind": "ing", "price": 0},
@@ -211,6 +213,7 @@ const FURNITURE := {
 	"plant_small": {"name": "작은 화분", "price": 100, "tex": "furniture/plant_small", "icon": "items/deco_plant", "kind": "decor",
 		"foot": [Vector2(16, 100), Vector2(80, 100), Vector2(80, 131), Vector2(16, 131)]},
 }
+var zoom := {}  # 화면마다 마우스 휠로 맞춘 확대(저장 안 해요)
 var furn_inv := {}  # 사 두고 아직 안 놓은 가구 {id: 개수}
 var placed: Array = []  # 놓은 가구 [{"id", "x", "y"}] (가게 홀 좌표, 그림 왼쪽 위)
 
@@ -429,6 +432,29 @@ func count_stock(id: String) -> int:
 
 func count(id: String) -> int:
 	return inv.get(id, 0)
+
+
+## 물약을 마셔요(숲길에서 1·2번 키). 마셨으면 true.
+const POTION_HEAL := {"hp_potion": 50, "mp_potion": 20}
+func drink(id: String) -> bool:
+	if int(inv.get(id, 0)) <= 0:
+		toast.emit("%s이 없어요. 도토리 마을 물약집에서 사요." % item_name(id))
+		return false
+	if id == "hp_potion":
+		if hp >= max_hp():
+			toast.emit("체력이 가득해요.")
+			return false
+		hp = mini(max_hp(), hp + POTION_HEAL[id])
+	else:
+		if mp >= max_mp():
+			toast.emit("마나가 가득해요.")
+			return false
+		mp = mini(max_mp(), mp + POTION_HEAL[id])
+	inv[id] -= 1
+	if inv[id] <= 0:
+		inv.erase(id)
+	changed.emit()
+	return true
 
 
 func add_item(id: String, n: int) -> void:

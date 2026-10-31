@@ -12,6 +12,20 @@ func _ready():
 	await _wait(0.5)
 	main.current._shop("weapon"); await _wait(0.4); await _shot("f1_weapon_shop")
 	main.hud.close_panel()
+	await _shot("f0_village_scale")
+	main.current._shop("potion"); await _wait(0.4); await _shot("f1b_potion_shop")
+	main.hud.close_panel()
+	# 물약집 건물을 누르면 걸어가서 바로 열려요
+	var vc = main.current
+	vc.player.position = Vector2(330, 620)
+	var ev := InputEventMouseButton.new()
+	ev.button_index = MOUSE_BUTTON_LEFT; ev.pressed = true
+	ev.position = main.get_viewport().get_canvas_transform() * Vector2(240, 480)
+	vc._unhandled_input(ev)
+	await _wait(3.0)
+	print("click shop opened: ", main.hud.is_panel_open(), " ctx=", main.hud.shop_ctx)
+	main.hud.close_panel()
+	GameState.inv["hp_potion"] = 2; GameState.inv["mp_potion"] = 1
 	# 마을 동쪽 끝으로 걸어 나가기
 	main.current.player.position = Vector2(1385, 378)
 	main.current.player.walk_to(Vector2(1400, 378))
@@ -33,6 +47,15 @@ func _ready():
 			await _shot("f3_attack")
 	await _wait(0.5); await _shot("f4_after_fight")
 	print("hp=", GameState.hp, " gold=", GameState.gold, " inv=", GameState.inv)
+	GameState.hp = 30
+	var k := InputEventKey.new(); k.keycode = KEY_1; k.pressed = true
+	f._unhandled_input(k)
+	print("after potion hp=", GameState.hp, " left=", GameState.inv.get("hp_potion", 0))
+	await _wait(0.3); await _shot("f4b_potion")
+	# 가운데 큰 나무 뒤로 걸어가 보기
+	f.player.position = Vector2(570, 240)
+	await _wait(0.6); await _shot("f4c_behind_tree")
+	print("behind tree walkable: ", f.can_walk(Vector2(570, 240)))
 	GameState.weapons.append("star_cutter"); GameState.weapon = "star_cutter"
 	if not f.monsters.is_empty():
 		var m2 = f.monsters[0]

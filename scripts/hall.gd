@@ -66,6 +66,7 @@ const SET_SEATS := [
 const HERO_SCALE := 0.7
 const ANIMAL_SCALE := 0.84
 const ZOOM := 1.0
+const ZOOM_MAX := 1.8  # 휠로 당겨 볼 수 있는 만큼(밀면 1배까지)
 
 var main: Node
 var world := Node2D.new()
@@ -116,6 +117,7 @@ func _ready() -> void:
 	player.position = Vector2(800, 640)
 	world.add_child(player)
 	cam.zoom = Vector2(ZOOM, ZOOM)
+	cam.set_meta("zoom_key", "hall")
 	cam.position_smoothing_enabled = true
 	cam.position_smoothing_speed = 7.0
 	player.add_child(cam)
@@ -402,6 +404,9 @@ func _process(delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not active or main.hud.is_panel_open():
+		return
+	if UI.wheel_zoom(cam, event, ZOOM, ZOOM_MAX):
+		get_viewport().set_input_as_handled()
 		return
 	if edit_mode:
 		_edit_input(event)
