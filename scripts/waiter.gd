@@ -13,7 +13,7 @@ func _ready() -> void:
 	sprite.sprite_frames = Sprites.frames_for("puppy", ["front", "back", "right", "tray", "sweep"])
 	var h := float(Sprites.frame_height("puppy_front"))
 	sprite.offset = Vector2(0, -h / 2.0)
-	sprite.scale = Vector2.ONE * 1.05 * 122.0 / h  # 예전 그림(키 122)과 같은 크기로
+	sprite.scale = Vector2.ONE * 0.84 * 122.0 / h  # 예전 그림(키 122)과 같은 크기로
 	sprite.animation = "front"
 	add_child(sprite)
 

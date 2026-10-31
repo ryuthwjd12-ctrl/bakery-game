@@ -8,7 +8,7 @@ const Bubble := preload("res://scripts/bubble.gd")
 const ORDER_PATIENCE := 45.0
 const FOOD_PATIENCE := 150.0
 const EAT_TIME := 6.0
-const SIT_SCALE := 0.95
+const SIT_SCALE := 0.78
 
 var state := "empty"
 var kind := ""
@@ -59,7 +59,7 @@ func _ready() -> void:
 	steam.color_ramp = ramp
 	add_child(steam)
 	bubble = Bubble.new()
-	bubble.position = Vector2(0, -132)
+	bubble.position = Vector2(0, -112)
 	bubble.visible = false
 	add_child(bubble)
 
@@ -84,8 +84,7 @@ func seat(k: String, o: String, q := "") -> void:
 	var h := float(Sprites.frame_height(wk))
 	animal.offset = Vector2(0, -h / 2.0 + 14)
 	var s := SIT_SCALE * (0.9 if k == "chick" else 1.0)
-	if k.begins_with("sq"):
-		s *= 121.0 / h  # 다람쥐 주민 그림은 크게 그려져 있어서 키를 맞춰요
+	s *= Sprites.size_fix(k)  # 새 주민 그림은 크게 그려져 있어서 선 키를 맞춰요
 	animal.scale = Vector2(s, s)
 	animal.play("wait")
 	animal.flip_h = face_left

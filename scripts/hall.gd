@@ -62,9 +62,9 @@ const SET_SEATS := [
 	{"seat": Vector2(44, 108), "food": Vector2(102, 92), "stand": Vector2(54, 232), "left": false},
 	{"seat": Vector2(212, 112), "food": Vector2(156, 92), "stand": Vector2(286, 135), "left": true},
 ]
-const HERO_SCALE := 0.88
-const ANIMAL_SCALE := 1.05
-const ZOOM := 1.2
+const HERO_SCALE := 0.7
+const ANIMAL_SCALE := 0.84
+const ZOOM := 1.0
 
 var main: Node
 var world := Node2D.new()
